@@ -1,572 +1,753 @@
-import streamlit as st
 import json
+import re
 from pathlib import Path
+from typing import Any, Dict, List
 
+import streamlit as st
+from openai import OpenAI
+
+# =========================================================
+# 기본 설정
+# =========================================================
 st.set_page_config(
-    page_title="카드 추천 챗봇",
+    page_title="AI 카드 추천 챗봇",
     page_icon="💳",
     layout="wide"
 )
 
-# -----------------------------
-# 기본 스타일
-# -----------------------------
+client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
+
+CREDIT_JSON = Path("credit_card.json")
+CHECK_JSON = Path("check_card.json")
+
+# =========================================================
+# 스타일
+# =========================================================
 st.markdown("""
 <style>
 .block-container {
-    padding-top: 1.5rem;
+    padding-top: 1.3rem;
     padding-bottom: 2rem;
-    max-width: 1200px;
+    max-width: 1240px;
 }
-.card-box {
-    padding: 1.2rem;
-    border-radius: 18px;
-    background: #ffffff;
-    border: 1px solid #eaeaea;
-    box-shadow: 0 4px 16px rgba(0,0,0,0.04);
+.title {
+    font-size: 2rem;
+    font-weight: 800;
+    margin-bottom: 0.2rem;
+}
+.subtitle {
+    color: #666;
     margin-bottom: 1rem;
 }
 .info-box {
     padding: 0.9rem 1rem;
-    border-radius: 14px;
+    border-radius: 16px;
     background: #f7f8fa;
     border: 1px solid #edf0f3;
     margin-bottom: 0.8rem;
 }
-.small-text {
-    color: #666;
-    font-size: 0.92rem;
+.card-box {
+    padding: 1rem;
+    border-radius: 18px;
+    background: #fff;
+    border: 1px solid #ececec;
+    box-shadow: 0 6px 18px rgba(0,0,0,0.05);
+    margin-bottom: 1rem;
 }
 .badge {
     display: inline-block;
-    padding: 0.2rem 0.55rem;
-    margin-right: 0.35rem;
+    padding: 0.22rem 0.58rem;
+    margin-right: 0.3rem;
     margin-bottom: 0.35rem;
     border-radius: 999px;
     background: #f1f3f5;
     font-size: 0.82rem;
 }
+.small {
+    color: #666;
+    font-size: 0.92rem;
+}
 </style>
 """, unsafe_allow_html=True)
 
-# -----------------------------
-# 데이터 로드
-# -----------------------------
-CARD_PATH = Path("cards.json")
+# =========================================================
+# 선택지
+# =========================================================
+CARD_TYPE_OPTIONS = ["신용카드", "체크카드", "상관없음"]
+SPEND_OPTIONS = ["20만원 이하", "20~40만원", "40~60만원", "60~80만원", "80~120만원", "120만원 이상"]
+FEE_OPTIONS = ["연회비 없음", "1만원 이하", "2만원 이하", "3만원 이하", "5만원 이하"]
+GOAL_OPTIONS = ["생활비 절약", "할인 많이 받기", "포인트/적립 위주", "교통/카페 특화", "배달/편의점 특화", "쇼핑 특화", "여행/마일리지"]
+LIFESTYLE_OPTIONS = ["사회초년생", "직장인", "대학생", "자취생", "프리랜서", "기타"]
+CATEGORY_OPTIONS = ["카페", "대중교통", "배달", "편의점", "통신비", "쇼핑", "주유", "OTT/구독", "여행", "공과금", "마트", "없음"]
+PERFORMANCE_OPTIONS = ["상관없음", "전월실적 없는 카드 선호", "전월실적 있어도 괜찮음"]
+SIMPLE_OPTIONS = ["상관없음", "혜택 조건 단순한 카드 선호", "조건 복잡해도 혜택 크면 괜찮음"]
+ISSUER_OPTIONS = ["없음", "신한카드", "KB국민카드", "현대카드", "삼성카드", "우리카드", "하나카드", "롯데카드", "BC카드", "카카오뱅크", "토스", "기타"]
 
-def load_cards():
-    if CARD_PATH.exists():
-        with open(CARD_PATH, "r", encoding="utf-8") as f:
-            return json.load(f)
-    return []
-
-cards = load_cards()
-
-# -----------------------------
-# session_state 초기화
-# -----------------------------
+# =========================================================
+# 세션
+# =========================================================
 def init_session():
-    if "user_profile" not in st.session_state:
-        st.session_state.user_profile = {
-            "card_type": "상관없음",
-            "monthly_spend": 500000,
-            "annual_fee_limit": 20000,
-            "top_categories": [],
-            "main_goal": "생활비 절약",
-            "lifestyle": "사회초년생",
-
-            # 챗봇이 추가로 알아내는 정보
-            "main_vs_sub": None,
-            "allow_performance_requirement": None,
-            "top_priority_category": None,
-            "prefer_discount_or_points": None,
-            "commute": None,
-            "delivery_heavy": None,
-            "online_shopping_heavy": None,
-            "preferred_issuers": [],
-            "excluded_issuers": [],
-            "existing_cards": [],
-            "disliked_conditions": []
-        }
-
     if "messages" not in st.session_state:
         st.session_state.messages = [
             {
                 "role": "assistant",
-                "content": "안녕하세요. 소비 패턴에 맞는 카드를 추천해드릴게요. 왼쪽에서 기본 조건을 입력한 뒤 추천을 시작해보세요."
+                "content": "안녕하세요. 카드 데이터를 먼저 좁힌 뒤, 그 후보 안에서 가장 잘 맞는 카드 3개를 추천해드릴게요."
             }
         ]
 
-    if "started" not in st.session_state:
-        st.session_state.started = False
+    if "user_profile" not in st.session_state:
+        st.session_state.user_profile = {
+            "card_type": "상관없음",
+            "monthly_spend": "40~60만원",
+            "annual_fee_limit": "2만원 이하",
+            "main_goal": "생활비 절약",
+            "lifestyle": "사회초년생",
+            "top_category_1": "카페",
+            "top_category_2": "대중교통",
+            "top_category_3": "배달",
+            "performance_preference": "상관없음",
+            "benefit_style": "상관없음",
+            "preferred_issuer": "없음",
+            "excluded_issuer": "없음",
+        }
+
+    if "all_cards" not in st.session_state:
+        st.session_state.all_cards = []
+
+    if "candidate_cards" not in st.session_state:
+        st.session_state.candidate_cards = []
 
     if "recommendations" not in st.session_state:
         st.session_state.recommendations = []
 
-    if "question_step" not in st.session_state:
-        st.session_state.question_step = 0
-
-    if "waiting_for_answer" not in st.session_state:
-        st.session_state.waiting_for_answer = False
+    if "started" not in st.session_state:
+        st.session_state.started = False
 
 init_session()
 
-# -----------------------------
-# 질문 플로우
-# -----------------------------
-QUESTION_FLOW = [
-    {
-        "key": "main_vs_sub",
-        "question": "이번 카드는 메인카드로 쓰실 예정인가요, 아니면 서브카드로 찾고 계신가요?",
-        "type": "choice",
-        "options": ["메인카드", "서브카드"]
-    },
-    {
-        "key": "allow_performance_requirement",
-        "question": "전월실적 조건이 조금 있어도 혜택이 좋으면 괜찮으세요?",
-        "type": "choice",
-        "options": ["네", "아니요"]
-    },
-    {
-        "key": "top_priority_category",
-        "question": "선택하신 소비 항목 중에서 가장 중요한 혜택 하나만 고른다면 무엇인가요?",
-        "type": "dynamic_choice"
-    },
-    {
-        "key": "prefer_discount_or_points",
-        "question": "할인형과 적립형 중 어떤 쪽을 더 선호하세요?",
-        "type": "choice",
-        "options": ["할인형", "적립형", "둘 다 괜찮음"]
-    }
-]
-
-# -----------------------------
-# 유틸 함수
-# -----------------------------
-def add_message(role, content):
+# =========================================================
+# 유틸
+# =========================================================
+def add_message(role: str, content: str):
     st.session_state.messages.append({"role": role, "content": content})
 
-def format_currency(v):
-    return f"{int(v):,}원"
+def safe_int(value: Any, default: int = 0) -> int:
+    if isinstance(value, int):
+        return value
+    if isinstance(value, float):
+        return int(value)
+    if value is None:
+        return default
+    text = str(value).replace(",", "")
+    nums = re.findall(r"\d+", text)
+    if not nums:
+        return default
+    return int("".join(nums))
 
-def get_missing_question():
-    """
-    아직 답하지 않은 질문 중 다음 질문 반환
-    """
-    for item in QUESTION_FLOW:
-        key = item["key"]
-        if st.session_state.user_profile.get(key) is None:
-            return item
-    return None
+def first_non_empty(data: Dict[str, Any], keys: List[str], default=None):
+    for k in keys:
+        if k in data and data[k] not in [None, "", [], {}]:
+            return data[k]
+    return default
 
-def convert_answer(key, answer):
-    if key == "allow_performance_requirement":
-        return True if answer == "네" else False
-    return answer
+def spend_to_number(text: str) -> int:
+    mapping = {
+        "20만원 이하": 200000,
+        "20~40만원": 400000,
+        "40~60만원": 600000,
+        "60~80만원": 800000,
+        "80~120만원": 1200000,
+        "120만원 이상": 1600000
+    }
+    return mapping.get(text, 600000)
 
-def generate_initial_summary(profile):
-    cats = ", ".join(profile["top_categories"]) if profile["top_categories"] else "미선택"
-    return (
-        f"입력해주신 조건을 정리하면, "
-        f"{profile['card_type']} 기준 / 월 소비 {format_currency(profile['monthly_spend'])} / "
-        f"연회비 {format_currency(profile['annual_fee_limit'])} 이하 / "
-        f"주요 소비는 {cats} / 목표는 {profile['main_goal']}이네요. "
-        f"조금만 더 여쭤보고 더 잘 맞는 카드로 추천해드릴게요."
-    )
+def fee_to_number(text: str) -> int:
+    mapping = {
+        "연회비 없음": 0,
+        "1만원 이하": 10000,
+        "2만원 이하": 20000,
+        "3만원 이하": 30000,
+        "5만원 이하": 50000
+    }
+    return mapping.get(text, 20000)
 
-# -----------------------------
-# 추천 점수 계산
-# -----------------------------
-def calculate_score(card, user):
-    score = 0
+def get_top_categories(profile: Dict[str, Any]) -> List[str]:
+    values = [
+        profile.get("top_category_1"),
+        profile.get("top_category_2"),
+        profile.get("top_category_3"),
+    ]
+    result = []
+    for v in values:
+        if v and v != "없음" and v not in result:
+            result.append(v)
+    return result
 
-    # 카드 종류
-    if user["card_type"] != "상관없음":
-        if card["card_type"] == user["card_type"]:
-            score += 25
+def normalize_benefits(raw: Dict[str, Any]) -> List[str]:
+    benefit_list = first_non_empty(raw, ["benefits", "benefit_categories", "main_benefits"], [])
+    if isinstance(benefit_list, list):
+        return [str(x).strip() for x in benefit_list if str(x).strip()]
+
+    text_pool = " ".join([
+        str(first_non_empty(raw, ["benefit_text"], "")),
+        str(first_non_empty(raw, ["description"], "")),
+        str(first_non_empty(raw, ["summary"], "")),
+        str(first_non_empty(raw, ["benefit"], "")),
+    ])
+
+    category_map = {
+        "카페": ["카페", "스타벅스", "커피"],
+        "대중교통": ["교통", "버스", "지하철", "대중교통"],
+        "배달": ["배달", "배달앱", "배민", "요기요", "쿠팡이츠"],
+        "편의점": ["편의점", "CU", "GS25", "세븐일레븐"],
+        "통신비": ["통신", "통신비"],
+        "쇼핑": ["쇼핑", "온라인쇼핑", "쿠팡", "네이버쇼핑", "G마켓"],
+        "주유": ["주유", "주유소", "기름"],
+        "OTT/구독": ["OTT", "넷플릭스", "유튜브프리미엄", "디즈니", "구독"],
+        "여행": ["여행", "항공", "마일리지", "호텔"],
+        "공과금": ["공과금", "전기", "가스", "수도"],
+        "마트": ["마트", "이마트", "홈플러스", "롯데마트"]
+    }
+
+    found = []
+    for cat, keywords in category_map.items():
+        if any(k in text_pool for k in keywords):
+            found.append(cat)
+    return found
+
+def normalize_card(raw: Dict[str, Any], source_type: str) -> Dict[str, Any]:
+    card_name = first_non_empty(raw, ["card_name", "name", "cardName", "상품명"], "이름없음 카드")
+    issuer = first_non_empty(raw, ["issuer", "card_company", "company", "brand", "card_corp"], "카드사 미상")
+    annual_fee = safe_int(first_non_empty(raw, ["annual_fee", "fee", "annualFee", "연회비"], 0), 0)
+    min_spend = safe_int(first_non_empty(raw, ["min_spend", "previous_month_spend", "pre_spend", "전월실적"], 0), 0)
+    image_url = first_non_empty(raw, ["Image_URL", "image_url", "img_url", "card_image", "image"], None)
+    benefit_detail = first_non_empty(raw, ["benefit_detail", "benefits_detail", "benefit_map"], {})
+    description_parts = []
+    for k in ["summary", "description", "benefit_text", "benefit", "intro"]:
+        if raw.get(k):
+            description_parts.append(str(raw.get(k)))
+    description = " ".join(description_parts).strip()
+
+    if not isinstance(benefit_detail, dict):
+        benefit_detail = {}
+
+    return {
+        "card_name": str(card_name),
+        "issuer": str(issuer),
+        "annual_fee": annual_fee,
+        "min_spend": min_spend,
+        "benefits": normalize_benefits(raw),
+        "benefit_detail": benefit_detail,
+        "description": description,
+        "image_url": image_url,
+        "card_type": "체크카드" if source_type == "check" else "신용카드",
+        "raw": raw,
+    }
+
+def load_json_cards(path: Path, source_type: str) -> List[Dict[str, Any]]:
+    if not path.exists():
+        return []
+
+    with open(path, "r", encoding="utf-8") as f:
+        data = json.load(f)
+
+    if isinstance(data, dict):
+        for v in data.values():
+            if isinstance(v, list):
+                data = v
+                break
+
+    if not isinstance(data, list):
+        return []
+
+    return [normalize_card(item, source_type) for item in data if isinstance(item, dict)]
+
+def load_all_cards() -> List[Dict[str, Any]]:
+    return load_json_cards(CREDIT_JSON, "credit") + load_json_cards(CHECK_JSON, "check")
+
+def card_to_search_text(card: Dict[str, Any]) -> str:
+    detail_text = ""
+    if card.get("benefit_detail"):
+        try:
+            detail_text = json.dumps(card["benefit_detail"], ensure_ascii=False)
+        except Exception:
+            detail_text = str(card["benefit_detail"])
+
+    return " ".join([
+        str(card.get("card_name", "")),
+        str(card.get("issuer", "")),
+        str(card.get("card_type", "")),
+        " ".join(card.get("benefits", [])),
+        str(card.get("description", "")),
+        detail_text,
+    ]).lower()
+
+# =========================================================
+# 후보 축소
+# =========================================================
+def hard_filter_cards(cards: List[Dict[str, Any]], profile: Dict[str, Any]) -> List[Dict[str, Any]]:
+    fee_limit = fee_to_number(profile["annual_fee_limit"])
+    spend_limit = spend_to_number(profile["monthly_spend"])
+
+    results = []
+    for card in cards:
+        # 카드 종류
+        if profile["card_type"] != "상관없음" and card["card_type"] != profile["card_type"]:
+            continue
+
+        # 연회비
+        if fee_limit == 0:
+            if card["annual_fee"] != 0:
+                continue
         else:
-            score -= 50
+            if card["annual_fee"] > fee_limit:
+                continue
 
-    # 연회비
-    if card["annual_fee"] <= user["annual_fee_limit"]:
-        score += 20
-    else:
-        score -= 20
+        # 전월실적 선호
+        if profile["performance_preference"] == "전월실적 없는 카드 선호":
+            if card["min_spend"] > 0:
+                continue
+        elif profile["performance_preference"] == "전월실적 있어도 괜찮음":
+            # 너무 높은 전월실적은 제외
+            if card["min_spend"] > spend_limit * 1.2:
+                continue
 
-    # 전월 실적
-    if user["allow_performance_requirement"] is False:
-        if card["min_spend"] == 0:
-            score += 20
-        else:
-            score -= 15
-    elif user["allow_performance_requirement"] is True:
-        if card["min_spend"] <= user["monthly_spend"]:
-            score += 10
+        # 제외 카드사
+        excluded = profile["excluded_issuer"]
+        if excluded != "없음" and excluded in card["issuer"]:
+            continue
 
-    # 주요 카테고리 일치
-    overlap = set(card["benefits"]) & set(user["top_categories"])
-    score += len(overlap) * 12
+        results.append(card)
 
-    # 최우선 카테고리
-    if user["top_priority_category"]:
-        if user["top_priority_category"] in card["benefits"]:
-            score += 20
+    return results
 
-    # 목표 기반
-    tags = card.get("tags", [])
+def soft_rank_cards(cards: List[Dict[str, Any]], profile: Dict[str, Any], top_k: int = 25) -> List[Dict[str, Any]]:
+    top_categories = get_top_categories(profile)
 
-    if user["main_goal"] in ["생활비 절약", "할인 많이 받기"]:
-        if "할인형" in tags:
-            score += 15
-    if user["main_goal"] == "포인트/적립 위주":
-        if "적립형" in tags or "포인트" in tags:
-            score += 15
+    query_tokens = []
+    query_tokens.extend(top_categories)
+    query_tokens.append(profile["main_goal"])
+    query_tokens.append(profile["lifestyle"])
 
-    # 할인형/적립형 선호
-    if user["prefer_discount_or_points"] == "할인형" and "할인형" in tags:
-        score += 15
-    if user["prefer_discount_or_points"] == "적립형" and ("적립형" in tags or "포인트" in tags):
-        score += 15
+    if profile["preferred_issuer"] != "없음":
+        query_tokens.append(profile["preferred_issuer"])
 
-    # 라이프스타일
-    target = card.get("target", [])
-    if user["lifestyle"] in target:
-        score += 10
+    if profile["benefit_style"] == "혜택 조건 단순한 카드 선호":
+        query_tokens.extend(["기본", "단순", "무실적", "캐시백"])
+    elif profile["benefit_style"] == "조건 복잡해도 혜택 크면 괜찮음":
+        query_tokens.extend(["적립", "할인", "프리미엄"])
 
-    # 메인/서브카드
-    if user["main_vs_sub"] == "메인카드" and "메인카드" in target:
-        score += 8
-    if user["main_vs_sub"] == "서브카드" and "서브카드" in target:
-        score += 8
+    query_tokens = [t.lower() for t in query_tokens if t and t != "없음"]
 
-    return score
-
-def recommend_cards(cards, user, top_n=3):
     scored = []
     for card in cards:
-        score = calculate_score(card, user)
+        text = card_to_search_text(card)
+        score = 0
+
+        # 선호 카드사
+        if profile["preferred_issuer"] != "없음" and profile["preferred_issuer"] in card["issuer"]:
+            score += 4
+
+        # 주요 카테고리
+        for cat in top_categories:
+            if cat.lower() in text:
+                score += 3
+
+        # 목표
+        goal = profile["main_goal"]
+        if goal == "생활비 절약":
+            for kw in ["할인", "캐시백", "생활", "편의점", "공과금"]:
+                if kw in text:
+                    score += 1
+        elif goal == "할인 많이 받기":
+            for kw in ["할인", "청구할인", "캐시백"]:
+                if kw in text:
+                    score += 1
+        elif goal == "포인트/적립 위주":
+            for kw in ["적립", "포인트", "마일리지"]:
+                if kw in text:
+                    score += 1
+        elif goal == "교통/카페 특화":
+            for kw in ["카페", "교통", "대중교통"]:
+                if kw in text:
+                    score += 2
+        elif goal == "배달/편의점 특화":
+            for kw in ["배달", "편의점"]:
+                if kw in text:
+                    score += 2
+        elif goal == "쇼핑 특화":
+            for kw in ["쇼핑", "온라인"]:
+                if kw in text:
+                    score += 2
+        elif goal == "여행/마일리지":
+            for kw in ["여행", "항공", "마일리지", "호텔"]:
+                if kw in text:
+                    score += 2
+
+        # 생활패턴
+        if profile["lifestyle"] in text:
+            score += 1
+
+        # 간단 토큰 매칭
+        for token in query_tokens:
+            if token in text:
+                score += 1
+
+        # 전월실적 낮을수록 약간 우대
+        if card["min_spend"] == 0:
+            score += 1
+
         scored.append((card, score))
+
     scored.sort(key=lambda x: x[1], reverse=True)
-    return scored[:top_n]
+    return [x[0] for x in scored[:top_k]]
 
-def build_reason(card, user):
-    reasons = []
+# =========================================================
+# OpenAI 최종 추천
+# =========================================================
+def build_profile_summary(profile: Dict[str, Any]) -> str:
+    return (
+        f"카드종류={profile['card_type']}, "
+        f"월소비={profile['monthly_spend']}, "
+        f"연회비한도={profile['annual_fee_limit']}, "
+        f"추천목표={profile['main_goal']}, "
+        f"라이프스타일={profile['lifestyle']}, "
+        f"주요카테고리={', '.join(get_top_categories(profile))}, "
+        f"전월실적선호={profile['performance_preference']}, "
+        f"혜택조건선호={profile['benefit_style']}, "
+        f"선호카드사={profile['preferred_issuer']}, "
+        f"제외카드사={profile['excluded_issuer']}"
+    )
 
-    overlap = list(set(card["benefits"]) & set(user["top_categories"]))
-    if overlap:
-        reasons.append(f"주요 소비 항목인 {', '.join(overlap)} 혜택이 포함돼 있어요")
+def candidate_payload(cards: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    payload = []
+    for c in cards:
+        payload.append({
+            "card_name": c["card_name"],
+            "issuer": c["issuer"],
+            "card_type": c["card_type"],
+            "annual_fee": c["annual_fee"],
+            "min_spend": c["min_spend"],
+            "benefits": c["benefits"],
+            "description": c["description"][:700],
+            "image_url": c["image_url"],
+        })
+    return payload
 
-    if user["top_priority_category"] and user["top_priority_category"] in card["benefits"]:
-        reasons.append(f"가장 중요하게 본 '{user['top_priority_category']}' 혜택에 잘 맞아요")
+def ask_llm_for_top3(profile: Dict[str, Any], candidates: List[Dict[str, Any]]) -> Dict[str, Any]:
+    prompt = {
+        "task": "사용자에게 가장 적합한 카드 3개를 후보 목록에서만 고른다.",
+        "rules": [
+            "후보 목록에 없는 카드는 절대 만들지 않는다.",
+            "카드명은 후보 카드명과 정확히 동일하게 쓴다.",
+            "과장 없이 현실적으로 추천한다.",
+            "사용자의 소비패턴과 혜택 연결성을 우선한다.",
+            "연회비, 전월실적, 혜택 방향, 사용 편의성을 함께 고려한다."
+        ],
+        "user_profile": build_profile_summary(profile),
+        "candidate_cards": candidate_payload(candidates),
+        "output_format": {
+            "intro_message": "추천 전체 소개 2~4문장",
+            "recommendations": [
+                {
+                    "card_name": "후보 카드명 그대로",
+                    "summary": "한 줄 요약",
+                    "reason": "추천 이유 2~4문장",
+                    "pros": ["장점1", "장점2"],
+                    "caution": "주의점 1문장"
+                }
+            ]
+        }
+    }
 
-    if card["annual_fee"] <= user["annual_fee_limit"]:
-        reasons.append(f"연회비도 {format_currency(user['annual_fee_limit'])} 이하로 부담이 비교적 적어요")
+    try:
+        resp = client.responses.create(
+            model="gpt-5.4",
+            input=[
+                {
+                    "role": "system",
+                    "content": (
+                        "너는 카드 추천 전문가다. "
+                        "반드시 유효한 JSON만 출력한다. "
+                        "코드블록, 마크다운, 설명문을 추가하지 않는다."
+                    )
+                },
+                {
+                    "role": "user",
+                    "content": json.dumps(prompt, ensure_ascii=False)
+                }
+            ]
+        )
+        return json.loads(resp.output_text.strip())
+    except Exception:
+        top3 = candidates[:3]
+        return {
+            "intro_message": "입력하신 조건과 소비 패턴을 기준으로 현재 후보 중에서 가장 잘 맞는 카드 3개를 골랐어요.",
+            "recommendations": [
+                {
+                    "card_name": c["card_name"],
+                    "summary": "현재 조건에 비교적 잘 맞는 카드예요.",
+                    "reason": f"{', '.join(c['benefits'][:3]) if c['benefits'] else '생활형'} 혜택이 현재 소비 패턴과 연결돼 활용하기 좋아요.",
+                    "pros": c["benefits"][:2] if c["benefits"] else ["무난한 활용도", "주요 생활 혜택"],
+                    "caution": "세부 혜택 조건과 실적 기준은 카드사 안내를 함께 확인해보세요."
+                }
+                for c in top3
+            ]
+        }
 
-    if user["allow_performance_requirement"] is False and card["min_spend"] == 0:
-        reasons.append("전월실적 조건이 없어서 쓰기 편해요")
-    elif user["allow_performance_requirement"] is True:
-        reasons.append("전월실적 조건을 감안해도 혜택 구성이 괜찮은 편이에요")
+def run_recommendation_pipeline(profile: Dict[str, Any], all_cards: List[Dict[str, Any]]) -> Dict[str, Any]:
+    hard_filtered = hard_filter_cards(all_cards, profile)
 
-    tags = card.get("tags", [])
-    if user["prefer_discount_or_points"] == "할인형" and "할인형" in tags:
-        reasons.append("선호하신 할인형 카드 성격과 잘 맞아요")
-    if user["prefer_discount_or_points"] == "적립형" and ("적립형" in tags or "포인트" in tags):
-        reasons.append("선호하신 적립형 카드 성격과 잘 맞아요")
+    if not hard_filtered:
+        return {
+            "intro_message": "현재 조건에 맞는 카드 후보가 너무 적거나 없어요. 연회비나 카드 종류 조건을 조금 완화해보는 게 좋아요.",
+            "items": [],
+            "candidate_count": 0
+        }
 
-    if not reasons:
-        reasons.append("입력하신 조건과 전반적으로 잘 맞는 무난한 카드예요")
+    reduced = soft_rank_cards(hard_filtered, profile, top_k=25)
+    llm_result = ask_llm_for_top3(profile, reduced)
 
-    return " · ".join(reasons[:3])
+    name_map = {c["card_name"]: c for c in reduced}
+    final_items = []
+    for item in llm_result.get("recommendations", [])[:3]:
+        name = item.get("card_name")
+        if name in name_map:
+            final_items.append({**name_map[name], **item})
 
-# -----------------------------
-# UI: 사이드바
-# -----------------------------
+    if not final_items:
+        for c in reduced[:3]:
+            final_items.append({
+                **c,
+                "summary": "현재 조건에 비교적 잘 맞는 카드예요.",
+                "reason": f"{', '.join(c['benefits'][:3]) if c['benefits'] else '생활형'} 혜택이 현재 소비 패턴과 연결돼 있어요.",
+                "pros": c["benefits"][:2] if c["benefits"] else ["활용도 높음", "무난한 혜택"],
+                "caution": "세부 조건은 카드사 안내를 확인해보세요."
+            })
+
+    return {
+        "intro_message": llm_result.get("intro_message", "후보를 좁힌 뒤 가장 잘 맞는 카드 3개를 골랐어요."),
+        "items": final_items,
+        "candidate_count": len(reduced)
+    }
+
+# =========================================================
+# 데이터 로드
+# =========================================================
+if not st.session_state.all_cards:
+    st.session_state.all_cards = load_all_cards()
+
+# =========================================================
+# 사이드바
+# =========================================================
 with st.sidebar:
-    st.title("💳 카드 추천 설정")
-    st.caption("기본 조건만 먼저 입력하면, 부족한 정보는 챗봇이 이어서 물어봐요.")
+    st.title("💳 추천 조건 설정")
+    st.caption("1200개 전체를 바로 넣지 않고, 먼저 후보를 줄인 뒤 추천해요.")
 
-    card_type = st.radio(
-        "카드 종류",
-        ["신용카드", "체크카드", "상관없음"],
-        index=["신용카드", "체크카드", "상관없음"].index(st.session_state.user_profile["card_type"])
-    )
+    p = st.session_state.user_profile
 
-    monthly_spend = st.slider(
-        "월 평균 소비금액",
-        min_value=100000,
-        max_value=3000000,
-        step=100000,
-        value=int(st.session_state.user_profile["monthly_spend"])
-    )
+    card_type = st.selectbox("카드 종류", CARD_TYPE_OPTIONS, index=CARD_TYPE_OPTIONS.index(p["card_type"]))
+    monthly_spend = st.selectbox("월 평균 소비금액", SPEND_OPTIONS, index=SPEND_OPTIONS.index(p["monthly_spend"]))
+    annual_fee_limit = st.selectbox("연회비 허용 범위", FEE_OPTIONS, index=FEE_OPTIONS.index(p["annual_fee_limit"]))
+    main_goal = st.selectbox("추천 목적", GOAL_OPTIONS, index=GOAL_OPTIONS.index(p["main_goal"]))
+    lifestyle = st.selectbox("라이프스타일", LIFESTYLE_OPTIONS, index=LIFESTYLE_OPTIONS.index(p["lifestyle"]))
 
-    annual_fee_limit = st.selectbox(
-        "연회비 허용 범위",
-        [0, 10000, 20000, 30000, 50000],
-        index=[0, 10000, 20000, 30000, 50000].index(st.session_state.user_profile["annual_fee_limit"]),
-        format_func=lambda x: "연회비 없음" if x == 0 else f"{x:,}원 이하"
-    )
+    st.markdown("### 주요 소비 카테고리")
+    top_category_1 = st.selectbox("1순위 소비", CATEGORY_OPTIONS[:-1], index=CATEGORY_OPTIONS[:-1].index(p["top_category_1"]))
+    top_category_2 = st.selectbox("2순위 소비", CATEGORY_OPTIONS, index=CATEGORY_OPTIONS.index(p["top_category_2"]))
+    top_category_3 = st.selectbox("3순위 소비", CATEGORY_OPTIONS, index=CATEGORY_OPTIONS.index(p["top_category_3"]))
 
-    top_categories = st.multiselect(
-        "주요 소비 카테고리",
-        ["카페", "대중교통", "배달", "편의점", "통신비", "쇼핑", "주유", "OTT/구독", "여행", "공과금"],
-        default=st.session_state.user_profile["top_categories"]
-    )
+    st.markdown("### 추가 조건")
+    performance_preference = st.selectbox("전월실적 선호", PERFORMANCE_OPTIONS, index=PERFORMANCE_OPTIONS.index(p["performance_preference"]))
+    benefit_style = st.selectbox("혜택 조건 선호", SIMPLE_OPTIONS, index=SIMPLE_OPTIONS.index(p["benefit_style"]))
+    preferred_issuer = st.selectbox("선호 카드사", ISSUER_OPTIONS, index=ISSUER_OPTIONS.index(p["preferred_issuer"]))
+    excluded_issuer = st.selectbox("제외 카드사", ISSUER_OPTIONS, index=ISSUER_OPTIONS.index(p["excluded_issuer"]))
 
-    main_goal = st.selectbox(
-        "추천 목적",
-        ["생활비 절약", "할인 많이 받기", "포인트/적립 위주", "교통/카페 특화", "배달/편의점 특화", "쇼핑 특화", "여행/마일리지"],
-        index=["생활비 절약", "할인 많이 받기", "포인트/적립 위주", "교통/카페 특화", "배달/편의점 특화", "쇼핑 특화", "여행/마일리지"].index(st.session_state.user_profile["main_goal"])
-    )
-
-    lifestyle = st.selectbox(
-        "라이프스타일",
-        ["사회초년생", "직장인", "대학생", "자취생", "프리랜서", "기타"],
-        index=["사회초년생", "직장인", "대학생", "자취생", "프리랜서", "기타"].index(st.session_state.user_profile["lifestyle"])
-    )
-
-    col_sb1, col_sb2 = st.columns(2)
-    with col_sb1:
+    col_a, col_b = st.columns(2)
+    with col_a:
         start_btn = st.button("추천 시작", use_container_width=True)
-    with col_sb2:
+    with col_b:
         reset_btn = st.button("초기화", use_container_width=True)
 
+# =========================================================
 # 초기화
+# =========================================================
 if reset_btn:
-    for key in list(st.session_state.keys()):
-        del st.session_state[key]
+    for k in list(st.session_state.keys()):
+        del st.session_state[k]
     st.rerun()
 
+# =========================================================
 # 추천 시작
+# =========================================================
 if start_btn:
-    st.session_state.user_profile["card_type"] = card_type
-    st.session_state.user_profile["monthly_spend"] = monthly_spend
-    st.session_state.user_profile["annual_fee_limit"] = annual_fee_limit
-    st.session_state.user_profile["top_categories"] = top_categories
-    st.session_state.user_profile["main_goal"] = main_goal
-    st.session_state.user_profile["lifestyle"] = lifestyle
+    st.session_state.user_profile = {
+        "card_type": card_type,
+        "monthly_spend": monthly_spend,
+        "annual_fee_limit": annual_fee_limit,
+        "main_goal": main_goal,
+        "lifestyle": lifestyle,
+        "top_category_1": top_category_1,
+        "top_category_2": top_category_2,
+        "top_category_3": top_category_3,
+        "performance_preference": performance_preference,
+        "benefit_style": benefit_style,
+        "preferred_issuer": preferred_issuer,
+        "excluded_issuer": excluded_issuer,
+    }
 
     st.session_state.started = True
-    st.session_state.recommendations = []
 
-    add_message("assistant", generate_initial_summary(st.session_state.user_profile))
+    top_categories = ", ".join(get_top_categories(st.session_state.user_profile))
+    add_message(
+        "assistant",
+        f"좋아요. {card_type}, 월 소비 {monthly_spend}, 연회비 {annual_fee_limit}, 주요 소비 {top_categories}, 목표는 {main_goal} 기준으로 먼저 후보를 줄여볼게요."
+    )
 
-    next_q = get_missing_question()
-    if next_q:
-        add_message("assistant", next_q["question"])
-        st.session_state.waiting_for_answer = True
-    else:
-        st.session_state.waiting_for_answer = False
+    with st.spinner("카드 후보를 줄이고 추천 이유를 정리하는 중이에요..."):
+        result = run_recommendation_pipeline(
+            st.session_state.user_profile,
+            st.session_state.all_cards
+        )
+        st.session_state.recommendations = result["items"]
+        st.session_state.candidate_cards = result["candidate_count"]
+        add_message("assistant", result["intro_message"])
 
-# -----------------------------
+    st.rerun()
+
+# =========================================================
 # 메인 레이아웃
-# -----------------------------
+# =========================================================
 left, right = st.columns([2.2, 1])
 
 with left:
-    st.title("카드 추천 챗봇")
-    st.caption("사이드바에서 기본 조건을 선택하고, 챗봇과 짧게 대화하면 더 잘 맞는 카드 3개를 추천해드려요.")
+    st.markdown('<div class="title">AI 카드 추천 챗봇</div>', unsafe_allow_html=True)
+    st.markdown('<div class="subtitle">후보를 먼저 줄인 뒤, 그 안에서 가장 잘 맞는 카드 3개를 추천합니다.</div>', unsafe_allow_html=True)
 
-    # 예시 버튼
-    ex1, ex2, ex3 = st.columns(3)
-    with ex1:
-        if st.button("카페 할인 좋은 카드"):
-            add_message("user", "카페 할인 좋은 카드 추천해줘")
-            add_message("assistant", "좋아요. 카페 혜택을 더 중요하게 반영해서 볼게요. 사이드바에서 소비 카테고리에 카페를 포함하면 더 정확해져요.")
-    with ex2:
-        if st.button("사회초년생용 카드"):
-            add_message("user", "사회초년생용 카드 추천해줘")
-            add_message("assistant", "좋아요. 연회비 부담이 낮고 생활 혜택이 많은 카드 위주로 보는 게 좋아요.")
-    with ex3:
-        if st.button("전월실적 없는 카드"):
-            add_message("user", "전월실적 없는 카드 추천해줘")
-            st.session_state.user_profile["allow_performance_requirement"] = False
-            add_message("assistant", "좋아요. 전월실적 없는 카드에 가점을 주도록 반영했어요.")
-
-    st.markdown("---")
-
-    # 채팅 히스토리
     for msg in st.session_state.messages:
         with st.chat_message(msg["role"]):
             st.write(msg["content"])
 
-    # 챗봇 응답용 입력
-    if st.session_state.started and st.session_state.waiting_for_answer:
-        current_q = get_missing_question()
-
-        if current_q:
-            if current_q["type"] == "choice":
-                answer = st.radio(
-                    "답변 선택",
-                    current_q["options"],
-                    key=f"radio_{current_q['key']}"
-                )
-                if st.button("답변 제출", key=f"submit_{current_q['key']}"):
-                    add_message("user", answer)
-                    st.session_state.user_profile[current_q["key"]] = convert_answer(current_q["key"], answer)
-
-                    next_q = get_missing_question()
-                    if next_q:
-                        add_message("assistant", next_q["question"])
-                        st.session_state.waiting_for_answer = True
-                    else:
-                        st.session_state.waiting_for_answer = False
-                        recs = recommend_cards(cards, st.session_state.user_profile, top_n=3)
-                        st.session_state.recommendations = recs
-                        add_message("assistant", "좋아요. 답변을 바탕으로 가장 잘 맞는 카드 3개를 추천해드릴게요.")
-                    st.rerun()
-
-            elif current_q["type"] == "dynamic_choice":
-                dynamic_options = st.session_state.user_profile["top_categories"][:]
-                if not dynamic_options:
-                    dynamic_options = ["카페", "대중교통", "배달", "쇼핑"]
-
-                answer = st.radio(
-                    "가장 중요한 혜택 선택",
-                    dynamic_options,
-                    key=f"radio_{current_q['key']}"
-                )
-                if st.button("답변 제출", key=f"submit_{current_q['key']}"):
-                    add_message("user", answer)
-                    st.session_state.user_profile[current_q["key"]] = answer
-
-                    next_q = get_missing_question()
-                    if next_q:
-                        add_message("assistant", next_q["question"])
-                        st.session_state.waiting_for_answer = True
-                    else:
-                        st.session_state.waiting_for_answer = False
-                        recs = recommend_cards(cards, st.session_state.user_profile, top_n=3)
-                        st.session_state.recommendations = recs
-                        add_message("assistant", "좋아요. 답변을 바탕으로 가장 잘 맞는 카드 3개를 추천해드릴게요.")
-                    st.rerun()
-
-    # 후속 자유 입력
     if st.session_state.started:
         user_text = st.chat_input("예: 연회비 낮은 쪽으로 다시 추천해줘")
         if user_text:
             add_message("user", user_text)
 
-            # 아주 단순한 후속 룰 기반 처리
-            if "연회비" in user_text and ("낮" in user_text or "적" in user_text):
-                st.session_state.user_profile["annual_fee_limit"] = min(st.session_state.user_profile["annual_fee_limit"], 10000)
-                add_message("assistant", "좋아요. 연회비가 더 낮은 카드 위주로 다시 볼게요.")
-            elif "체크카드" in user_text:
+            # 간단 후속 반영
+            if "체크카드" in user_text:
                 st.session_state.user_profile["card_type"] = "체크카드"
-                add_message("assistant", "좋아요. 체크카드 기준으로 다시 추천해드릴게요.")
+                add_message("assistant", "좋아요. 체크카드 기준으로 다시 후보를 줄여볼게요.")
             elif "신용카드" in user_text:
                 st.session_state.user_profile["card_type"] = "신용카드"
-                add_message("assistant", "좋아요. 신용카드 기준으로 다시 추천해드릴게요.")
-            elif "전월실적 없" in user_text:
-                st.session_state.user_profile["allow_performance_requirement"] = False
-                add_message("assistant", "좋아요. 전월실적 없는 카드에 우선순위를 높일게요.")
+                add_message("assistant", "좋아요. 신용카드 기준으로 다시 볼게요.")
+            elif "연회비" in user_text and ("낮" in user_text or "싼" in user_text):
+                st.session_state.user_profile["annual_fee_limit"] = "1만원 이하"
+                add_message("assistant", "좋아요. 연회비 부담이 낮은 카드 위주로 다시 볼게요.")
+            elif "전월실적" in user_text and ("없" in user_text or "싫" in user_text):
+                st.session_state.user_profile["performance_preference"] = "전월실적 없는 카드 선호"
+                add_message("assistant", "좋아요. 전월실적 없는 카드 위주로 다시 좁혀볼게요.")
             elif "카페" in user_text:
-                st.session_state.user_profile["top_priority_category"] = "카페"
-                add_message("assistant", "좋아요. 카페 혜택을 더 중요하게 반영할게요.")
+                st.session_state.user_profile["top_category_1"] = "카페"
+                add_message("assistant", "좋아요. 카페 혜택을 더 강하게 반영할게요.")
             elif "교통" in user_text:
-                st.session_state.user_profile["top_priority_category"] = "대중교통"
-                add_message("assistant", "좋아요. 대중교통 혜택을 더 중요하게 반영할게요.")
+                st.session_state.user_profile["top_category_1"] = "대중교통"
+                add_message("assistant", "좋아요. 교통 혜택을 더 중요하게 볼게요.")
             elif "배달" in user_text:
-                st.session_state.user_profile["top_priority_category"] = "배달"
+                st.session_state.user_profile["top_category_1"] = "배달"
                 add_message("assistant", "좋아요. 배달 혜택을 더 중요하게 반영할게요.")
             elif "적립" in user_text or "포인트" in user_text:
-                st.session_state.user_profile["prefer_discount_or_points"] = "적립형"
-                add_message("assistant", "좋아요. 적립형 카드 중심으로 다시 볼게요.")
+                st.session_state.user_profile["main_goal"] = "포인트/적립 위주"
+                add_message("assistant", "좋아요. 적립형 성격이 강한 카드 쪽으로 다시 볼게요.")
             elif "할인" in user_text:
-                st.session_state.user_profile["prefer_discount_or_points"] = "할인형"
-                add_message("assistant", "좋아요. 할인형 카드 중심으로 다시 볼게요.")
+                st.session_state.user_profile["main_goal"] = "할인 많이 받기"
+                add_message("assistant", "좋아요. 할인 중심 카드로 다시 후보를 줄일게요.")
             else:
-                add_message("assistant", "말씀해주신 조건을 반영해서 다시 추천해볼게요.")
+                add_message("assistant", "말씀하신 조건을 반영해서 다시 추천해볼게요.")
 
-            recs = recommend_cards(cards, st.session_state.user_profile, top_n=3)
-            st.session_state.recommendations = recs
+            with st.spinner("조건을 반영해서 다시 추천하는 중이에요..."):
+                result = run_recommendation_pipeline(
+                    st.session_state.user_profile,
+                    st.session_state.all_cards
+                )
+                st.session_state.recommendations = result["items"]
+                st.session_state.candidate_cards = result["candidate_count"]
+                add_message("assistant", result["intro_message"])
+
             st.rerun()
 
 with right:
     st.subheader("현재 조건 요약")
-
     p = st.session_state.user_profile
-    cats = ", ".join(p["top_categories"]) if p["top_categories"] else "미선택"
+    top_categories = ", ".join(get_top_categories(p)) or "미선택"
 
     st.markdown(f"""
-    <div class="info-box">
-        <b>카드 종류</b><br>{p['card_type']}
-    </div>
-    <div class="info-box">
-        <b>월 소비금액</b><br>{format_currency(p['monthly_spend'])}
-    </div>
-    <div class="info-box">
-        <b>연회비 허용 범위</b><br>{"연회비 없음" if p['annual_fee_limit'] == 0 else format_currency(p['annual_fee_limit']) + " 이하"}
-    </div>
-    <div class="info-box">
-        <b>주요 소비 카테고리</b><br>{cats}
-    </div>
-    <div class="info-box">
-        <b>추천 목적</b><br>{p['main_goal']}
-    </div>
-    <div class="info-box">
-        <b>라이프스타일</b><br>{p['lifestyle']}
-    </div>
+    <div class="info-box"><b>카드 종류</b><br>{p['card_type']}</div>
+    <div class="info-box"><b>월 소비금액</b><br>{p['monthly_spend']}</div>
+    <div class="info-box"><b>연회비 허용 범위</b><br>{p['annual_fee_limit']}</div>
+    <div class="info-box"><b>주요 소비 카테고리</b><br>{top_categories}</div>
+    <div class="info-box"><b>추천 목적</b><br>{p['main_goal']}</div>
+    <div class="info-box"><b>라이프스타일</b><br>{p['lifestyle']}</div>
+    <div class="info-box"><b>전월실적 선호</b><br>{p['performance_preference']}</div>
+    <div class="info-box"><b>혜택 조건 선호</b><br>{p['benefit_style']}</div>
+    <div class="info-box"><b>선호 카드사</b><br>{p['preferred_issuer']}</div>
+    <div class="info-box"><b>제외 카드사</b><br>{p['excluded_issuer']}</div>
     """, unsafe_allow_html=True)
 
-    st.subheader("추가로 파악한 정보")
-    extra_map = {
-        "main_vs_sub": "메인/서브",
-        "allow_performance_requirement": "전월실적 허용",
-        "top_priority_category": "최우선 혜택",
-        "prefer_discount_or_points": "선호 방식"
-    }
+    if st.session_state.started:
+        st.markdown(f"""
+        <div class="info-box">
+            <b>최종 추천 전 후보 수</b><br>{st.session_state.candidate_cards}개
+        </div>
+        """, unsafe_allow_html=True)
 
-    for key, label in extra_map.items():
-        value = p.get(key)
-        if value is not None:
-            if isinstance(value, bool):
-                value = "허용" if value else "비허용"
-            st.markdown(f"<div class='info-box'><b>{label}</b><br>{value}</div>", unsafe_allow_html=True)
-
-# -----------------------------
-# 추천 결과 출력
-# -----------------------------
+# =========================================================
+# 추천 결과
+# =========================================================
 if st.session_state.recommendations:
     st.markdown("---")
     st.subheader("추천 카드 3개")
 
-    col1, col2, col3 = st.columns(3)
+    cols = st.columns(3)
 
-    for i, (card, score) in enumerate(st.session_state.recommendations):
-        target_col = [col1, col2, col3][i]
-        with target_col:
-            badges = "".join([f"<span class='badge'>{b}</span>" for b in card.get("benefits", [])[:4]])
-            detail_lines = ""
-            for k, v in list(card.get("benefit_detail", {}).items())[:3]:
-                detail_lines += f"- {k}: {v}\n"
+    for idx, item in enumerate(st.session_state.recommendations[:3]):
+        with cols[idx]:
+            st.markdown('<div class="card-box">', unsafe_allow_html=True)
 
-            reason = build_reason(card, st.session_state.user_profile)
+            if item.get("image_url"):
+                st.image(item["image_url"], use_container_width=True)
 
-            st.markdown(f"""
-            <div class="card-box">
-                <h4 style="margin-bottom:0.4rem;">{card['card_name']}</h4>
-                <div class="small-text" style="margin-bottom:0.5rem;">{card['issuer']}</div>
-                <div style="margin-bottom:0.5rem;"><b>연회비</b> · {format_currency(card['annual_fee'])}</div>
-                <div style="margin-bottom:0.5rem;"><b>전월실적</b> · {format_currency(card['min_spend'])}</div>
-                <div style="margin-bottom:0.6rem;">{badges}</div>
-                <div style="margin-bottom:0.6rem;"><b>추천 이유</b><br>{reason}</div>
-                <div style="margin-bottom:0.4rem;"><b>적합도 점수</b> · {score}점</div>
-            </div>
-            """, unsafe_allow_html=True)
+            st.markdown(f"### {item['card_name']}")
+            st.caption(item.get("issuer", "카드사 정보 없음"))
 
-            with st.expander("혜택 자세히 보기"):
-                st.markdown(detail_lines if detail_lines else "등록된 상세 혜택이 없습니다.")
+            st.markdown(
+                f"**연회비** · {item.get('annual_fee', 0):,}원  \n"
+                f"**전월실적** · {item.get('min_spend', 0):,}원"
+            )
 
-    # 비교표
-    st.markdown("### 카드 비교")
-    compare_data = []
-    for card, score in st.session_state.recommendations:
-        compare_data.append({
-            "카드명": card["card_name"],
-            "카드사": card["issuer"],
-            "연회비": format_currency(card["annual_fee"]),
-            "전월실적": format_currency(card["min_spend"]),
-            "주요혜택": ", ".join(card["benefits"][:3]),
-            "적합도": score
-        })
-    st.dataframe(compare_data, use_container_width=True)
+            if item.get("benefits"):
+                badges = "".join([f"<span class='badge'>{b}</span>" for b in item["benefits"][:5]])
+                st.markdown(badges, unsafe_allow_html=True)
+
+            st.markdown(f"**한줄 요약**  \n{item.get('summary', '-')}")
+            st.markdown(f"**추천 이유**  \n{item.get('reason', '-')}")
+
+            pros = item.get("pros", [])
+            if pros:
+                st.markdown("**장점 포인트**")
+                for ptxt in pros[:3]:
+                    st.write(f"- {ptxt}")
+
+            caution = item.get("caution")
+            if caution:
+                st.markdown(f"**주의할 점**  \n{caution}")
+
+            with st.expander("카드 데이터 자세히 보기"):
+                st.write("혜택 카테고리:", item.get("benefits", []))
+                if item.get("benefit_detail"):
+                    st.json(item["benefit_detail"])
+                elif item.get("description"):
+                    st.write(item["description"])
+                else:
+                    st.write("추가 설명 데이터가 없습니다.")
+
+            st.markdown("</div>", unsafe_allow_html=True)

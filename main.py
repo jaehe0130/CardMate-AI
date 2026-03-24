@@ -1,203 +1,306 @@
-"""
-카드추천 챗봇 - Streamlit 앱 예시
-===================================
-이 파일은 커스텀 CSS/테마가 적용된 예시 코드입니다.
-실제 프로젝트의 main.py에 통합하여 사용하세요.
-
-사용법:
-    streamlit run example_main.py
-"""
-
+import os
 import streamlit as st
 
-# ── 페이지 설정 (반드시 첫 번째로 호출) ──
-st.set_page_config(
-    page_title="💳 카드추천 챗봇",
-    page_icon="💳",
-    layout="wide",
-    initial_sidebar_state="expanded",
-)
-
-# ── 커스텀 CSS 주입 ──
-from styles.inject_css import (
-    inject_custom_css,
+from chatbot import init_session_state, process_user_input
+from utils import (
+    render_sidebar,
+    render_chat_messages,
+    render_card_list,
     render_hero_section,
-    render_recommendation_card,
-    render_welcome_message,
-    render_sidebar_header,
+    render_quick_actions,
+    render_preference_summary,
+    render_service_notice
 )
 
-inject_custom_css()
-
-# ── 세션 상태 초기화 ──
-if "messages" not in st.session_state:
-    st.session_state.messages = []
-
-if "show_welcome" not in st.session_state:
-    st.session_state.show_welcome = True
-
-# ── 사이드바 ──
-render_sidebar_header()
-
-st.sidebar.divider()
-
-st.sidebar.markdown("### ⚙️ 설정")
-
-# 카테고리 필터
-category = st.sidebar.selectbox(
-    "관심 카테고리",
-    ["전체", "쇼핑", "여행", "카페/음식", "교통", "통신", "문화/여가"],
-    index=0,
+st.set_page_config(
+    page_title="CardMate AI",
+    page_icon="💳",
+    layout="wide"
 )
 
-# 연회비 범위
-fee_range = st.sidebar.slider(
-    "연회비 범위 (만원)",
-    min_value=0,
-    max_value=30,
-    value=(0, 15),
-    step=1,
-)
+st.markdown("""
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
 
-# 카드사 선택
-card_companies = st.sidebar.multiselect(
-    "선호 카드사",
-    ["삼성카드", "신한카드", "KB국민카드", "현대카드", "롯데카드", "하나카드", "우리카드", "NH농협카드"],
-    default=[],
-)
+html, body, [class*="css"] {
+    font-family: 'Inter', sans-serif;
+}
 
-st.sidebar.divider()
+.stApp {
+    background: linear-gradient(180deg, #F4F7FB 0%, #EDF2F8 100%);
+    color: #0F172A;
+}
 
-# 대화 초기화 버튼
-if st.sidebar.button("🗑️ 대화 초기화", use_container_width=True):
-    st.session_state.messages = []
-    st.session_state.show_welcome = True
+.block-container {
+    max-width: 1180px;
+    padding-top: 1.2rem;
+    padding-bottom: 2.4rem;
+}
+
+section[data-testid="stSidebar"] {
+    background: #0F172A;
+    border-right: 1px solid rgba(255,255,255,0.06);
+}
+
+section[data-testid="stSidebar"] * {
+    color: #F8FAFC !important;
+}
+
+.hero-wrap {
+    background:
+        radial-gradient(circle at top right, rgba(255,255,255,0.10), transparent 28%),
+        linear-gradient(135deg, #0F172A 0%, #172554 45%, #1D4ED8 100%);
+    border-radius: 28px;
+    padding: 34px 34px 30px 34px;
+    color: white;
+    box-shadow: 0 18px 50px rgba(15, 23, 42, 0.22);
+    margin-bottom: 18px;
+}
+
+.hero-badge {
+    display: inline-block;
+    padding: 7px 12px;
+    border-radius: 999px;
+    background: rgba(255,255,255,0.12);
+    border: 1px solid rgba(255,255,255,0.14);
+    font-size: 0.82rem;
+    font-weight: 600;
+    margin-bottom: 14px;
+}
+
+.hero-title {
+    font-size: 2.25rem;
+    font-weight: 800;
+    line-height: 1.2;
+    margin-bottom: 0.7rem;
+    letter-spacing: -0.02em;
+}
+
+.hero-desc {
+    font-size: 1rem;
+    color: rgba(255,255,255,0.88);
+    line-height: 1.7;
+    margin-bottom: 1rem;
+}
+
+.hero-chip {
+    display: inline-block;
+    padding: 9px 13px;
+    border-radius: 999px;
+    background: rgba(255,255,255,0.11);
+    border: 1px solid rgba(255,255,255,0.10);
+    font-size: 0.87rem;
+    margin-right: 8px;
+    margin-top: 8px;
+}
+
+.surface-card {
+    background: rgba(255,255,255,0.88);
+    backdrop-filter: blur(8px);
+    border: 1px solid rgba(226,232,240,0.9);
+    border-radius: 24px;
+    padding: 18px 18px 12px 18px;
+    box-shadow: 0 10px 30px rgba(15, 23, 42, 0.06);
+    margin-bottom: 16px;
+}
+
+.section-title {
+    font-size: 1.08rem;
+    font-weight: 800;
+    color: #0F172A;
+    margin-bottom: 12px;
+    letter-spacing: -0.01em;
+}
+
+.subtle-text {
+    color: #475569;
+    font-size: 0.94rem;
+}
+
+.pref-wrap {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 6px;
+}
+
+.pref-chip {
+    display: inline-block;
+    padding: 8px 12px;
+    border-radius: 999px;
+    background: #FFFFFF;
+    border: 1px solid #DCE5F0;
+    color: #0F172A;
+    font-size: 0.86rem;
+    font-weight: 600;
+}
+
+.notice-box {
+    background: linear-gradient(180deg, #FFFFFF 0%, #F8FBFF 100%);
+    border: 1px solid #DCE8F6;
+    border-radius: 18px;
+    padding: 14px 16px;
+    margin-bottom: 14px;
+}
+
+.notice-title {
+    font-weight: 700;
+    color: #0F172A;
+    margin-bottom: 4px;
+}
+
+.notice-desc {
+    color: #475569;
+    font-size: 0.92rem;
+    line-height: 1.6;
+}
+
+.quick-btn-wrap {
+    margin-top: 6px;
+}
+
+div[data-testid="stChatMessage"] {
+    background: transparent;
+}
+
+div[data-testid="stChatMessageContent"] {
+    border-radius: 18px;
+    padding: 0.95rem 1rem;
+}
+
+.card-shell {
+    background: linear-gradient(180deg, #FFFFFF 0%, #F9FBFD 100%);
+    border: 1px solid #E2E8F0;
+    border-radius: 24px;
+    padding: 16px;
+    box-shadow: 0 10px 28px rgba(15, 23, 42, 0.06);
+    min-height: 100%;
+}
+
+.card-top-badge {
+    display: inline-block;
+    padding: 6px 10px;
+    border-radius: 999px;
+    background: #EAF2FF;
+    color: #1D4ED8;
+    font-size: 0.77rem;
+    font-weight: 700;
+    margin-bottom: 10px;
+}
+
+.card-title {
+    font-size: 1.18rem;
+    font-weight: 800;
+    color: #0F172A;
+    margin-top: 8px;
+    margin-bottom: 8px;
+    letter-spacing: -0.01em;
+}
+
+.card-meta {
+    color: #475569;
+    font-size: 0.92rem;
+    margin-bottom: 12px;
+    line-height: 1.7;
+}
+
+.card-benefit {
+    background: #F8FAFC;
+    border: 1px solid #E2E8F0;
+    border-radius: 16px;
+    padding: 12px;
+    color: #334155;
+    font-size: 0.92rem;
+    line-height: 1.6;
+    min-height: 96px;
+}
+
+.card-link a {
+    color: #1D4ED8 !important;
+    text-decoration: none;
+    font-weight: 700;
+}
+
+.result-head {
+    margin-top: 6px;
+    margin-bottom: 12px;
+}
+
+.stButton > button {
+    border-radius: 14px !important;
+    border: 1px solid #D6E0EC !important;
+    background: #FFFFFF !important;
+    color: #0F172A !important;
+    font-weight: 700 !important;
+    padding: 0.75rem 1rem !important;
+}
+
+.stButton > button:hover {
+    border-color: #BFD2EA !important;
+    background: #F8FBFF !important;
+}
+
+.stChatInputContainer {
+    background: transparent !important;
+}
+
+hr {
+    border-color: #E2E8F0 !important;
+}
+</style>
+""", unsafe_allow_html=True)
+
+api_key = st.secrets.get("OPENAI_API_KEY") if hasattr(st, "secrets") else None
+if not api_key:
+    api_key = os.getenv("OPENAI_API_KEY")
+
+sidebar_filters = render_sidebar()
+init_session_state()
+
+render_hero_section()
+render_service_notice()
+
+quick_prompt = render_quick_actions()
+user_input = quick_prompt if quick_prompt else None
+
+st.markdown('<div class="surface-card">', unsafe_allow_html=True)
+render_preference_summary(st.session_state.user_prefs, sidebar_filters)
+st.markdown('</div>', unsafe_allow_html=True)
+
+st.markdown('<div class="surface-card">', unsafe_allow_html=True)
+st.markdown('<div class="section-title">AI 카드 추천 상담</div>', unsafe_allow_html=True)
+render_chat_messages(st.session_state.messages)
+st.markdown('</div>', unsafe_allow_html=True)
+
+chat_input = st.chat_input("예: 편의점, 통신비, 공과금 할인 좋고 실적 부담 적은 신용카드 추천해줘")
+if chat_input:
+    user_input = chat_input
+
+if user_input:
+    st.session_state.messages.append({
+        "role": "user",
+        "content": user_input
+    })
+
+    result = process_user_input(
+        user_input=user_input,
+        sidebar_filters=sidebar_filters,
+        api_key=api_key
+    )
+
+    st.session_state.user_prefs = result["preferences"]
+    st.session_state.last_cards = result["cards"]
+
+    st.session_state.messages.append({
+        "role": "assistant",
+        "content": result["message"]
+    })
+
     st.rerun()
 
-st.sidebar.divider()
-
-st.sidebar.markdown(
-    """
-    <div style="text-align: center; padding: 1rem 0;">
-        <div style="font-size: 0.75rem; color: #5A5E72;">
-            Powered by AI · v1.0.0<br>
-            © 2026 CardBot
-        </div>
-    </div>
-    """,
-    unsafe_allow_html=True,
-)
-
-# ── 메인 영역 ──
-render_hero_section()
-
-# 탭 구성
-tab_chat, tab_recommend, tab_compare = st.tabs(["💬 채팅", "🏆 추천 결과", "📊 카드 비교"])
-
-with tab_chat:
-    # 환영 메시지 또는 채팅 내역
-    if st.session_state.show_welcome and len(st.session_state.messages) == 0:
-        render_welcome_message()
-    
-    # 채팅 내역 표시
-    for message in st.session_state.messages:
-        with st.chat_message(message["role"]):
-            st.markdown(message["content"])
-    
-    # 채팅 입력
-    if prompt := st.chat_input("카드 추천이 필요하시면 말씀해주세요..."):
-        st.session_state.show_welcome = False
-        
-        # 사용자 메시지 추가
-        st.session_state.messages.append({"role": "user", "content": prompt})
-        with st.chat_message("user"):
-            st.markdown(prompt)
-        
-        # AI 응답 (예시 - 실제로는 chatbot.py의 로직 연결)
-        with st.chat_message("assistant"):
-            with st.spinner("카드를 분석하고 있습니다..."):
-                # 여기에 실제 chatbot.py의 추천 로직을 연결하세요
-                response = f"""안녕하세요! 말씀하신 내용을 바탕으로 카드를 분석해보았습니다.
-
-**📋 분석 결과:**
-- 주요 소비 패턴: 온라인 쇼핑, 카페
-- 추천 카테고리: 쇼핑/생활
-
-아래 **🏆 추천 결과** 탭에서 맞춤 카드를 확인해보세요!"""
-                st.markdown(response)
-        
-        st.session_state.messages.append({"role": "assistant", "content": response})
-
-with tab_recommend:
-    st.markdown("### 🏆 맞춤 카드 추천")
-    st.markdown("*AI가 분석한 최적의 카드 목록입니다*")
-    st.markdown("")
-    
-    # 예시 추천 카드들
-    render_recommendation_card(
-        card_name="신한카드 Deep Dream",
-        card_company="신한카드",
-        benefits=["온라인 쇼핑 5%", "스타벅스 50%", "넷플릭스 할인", "교통 10%"],
-        annual_fee="1만 5천원",
-        match_score=95,
-        is_top_pick=True,
-    )
-    
-    render_recommendation_card(
-        card_name="삼성카드 taptap O",
-        card_company="삼성카드",
-        benefits=["간편결제 할인", "온라인 쇼핑 3%", "편의점 할인"],
-        annual_fee="1만원",
-        match_score=88,
-        is_top_pick=False,
-    )
-    
-    render_recommendation_card(
-        card_name="KB국민 My WE:SH 카드",
-        card_company="KB국민카드",
-        benefits=["카페 20%", "배달앱 5%", "OTT 할인", "대중교통 할인"],
-        annual_fee="1만 2천원",
-        match_score=82,
-        is_top_pick=False,
-    )
-    
-    render_recommendation_card(
-        card_name="현대카드 ZERO Edition2",
-        card_company="현대카드",
-        benefits=["전 가맹점 캐시백", "연회비 무료", "포인트 적립"],
-        annual_fee="무료",
-        match_score=75,
-        is_top_pick=False,
-    )
-
-with tab_compare:
-    st.markdown("### 📊 카드 비교")
-    st.markdown("*추천된 카드들의 혜택을 한눈에 비교해보세요*")
-    st.markdown("")
-    
-    col1, col2, col3 = st.columns(3)
-    
-    with col1:
-        st.metric(label="최고 매치율", value="95%", delta="+12%")
-    with col2:
-        st.metric(label="평균 할인율", value="4.2%", delta="+0.8%")
-    with col3:
-        st.metric(label="추천 카드 수", value="4장", delta="2장")
-    
-    st.markdown("")
-    st.markdown("---")
-    
-    # 비교 테이블
-    import pandas as pd
-    
-    comparison_data = {
-        "카드명": ["신한 Deep Dream", "삼성 taptap O", "KB My WE:SH", "현대 ZERO Ed.2"],
-        "연회비": ["1.5만원", "1만원", "1.2만원", "무료"],
-        "쇼핑 혜택": ["⭐⭐⭐⭐⭐", "⭐⭐⭐⭐", "⭐⭐⭐", "⭐⭐⭐"],
-        "카페 혜택": ["⭐⭐⭐⭐⭐", "⭐⭐", "⭐⭐⭐⭐⭐", "⭐⭐"],
-        "교통 혜택": ["⭐⭐⭐⭐", "⭐⭐⭐", "⭐⭐⭐⭐", "⭐⭐⭐"],
-        "매치율": ["95%", "88%", "82%", "75%"],
-    }
-    
-    df = pd.DataFrame(comparison_data)
-    st.dataframe(df, use_container_width=True, hide_index=True)
+if st.session_state.last_cards:
+    st.markdown('<div class="result-head">', unsafe_allow_html=True)
+    st.markdown('<div class="section-title">추천 카드</div>', unsafe_allow_html=True)
+    st.markdown('<div class="subtle-text">현재 대화 내용과 선택 조건을 바탕으로 추천된 카드입니다.</div>', unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)
+    render_card_list(st.session_state.last_cards)

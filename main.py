@@ -1,70 +1,67 @@
-import os
 import streamlit as st
 
-from chatbot import init_session_state, process_user_input
-from utils import render_sidebar, render_chat_messages, render_card_list
 
-st.set_page_config(
-    page_title="CardMate AI",
-    page_icon="💳",
-    layout="wide"
-)
+def render_sidebar():
+    with st.sidebar:
+        st.header("조건 설정")
 
-st.markdown("""
-<style>
-.block-container {
-    max-width: 1100px;
-    padding-top: 1.5rem;
-    padding-bottom: 2rem;
-}
-.main-title {
-    font-size: 2rem;
-    font-weight: 800;
-    margin-bottom: 0.2rem;
-}
-.sub-title {
-    color: #666;
-    margin-bottom: 1rem;
-}
-</style>
-""", unsafe_allow_html=True)
+        card_type = st.selectbox(
+            "카드 종류",
+            ["전체", "신용카드", "체크카드"],
+            index=1
+        )
 
-st.markdown('<div class="main-title">💳 CardMate AI</div>', unsafe_allow_html=True)
-st.markdown('<div class="sub-title">생활패턴에 맞는 카드를 대화형으로 추천해드려요.</div>', unsafe_allow_html=True)
+        max_base_perf_num = st.selectbox(
+            "전월실적 상한",
+            [None, 100000, 200000, 300000, 500000],
+            index=3,
+            format_func=lambda x: "제한 없음" if x is None else f"{x:,}원 이하"
+        )
 
-# Streamlit Cloud secrets 우선, 없으면 환경변수
-api_key = st.secrets.get("OPENAI_API_KEY") or os.getenv("OPENAI_API_KEY")
+        max_annual_fee_domestic = st.selectbox(
+            "국내 연회비 상한",
+            [None, 10000, 20000, 30000, 50000],
+            index=2,
+            format_func=lambda x: "제한 없음" if x is None else f"{x:,}원 이하"
+        )
 
-sidebar_filters = render_sidebar()
-init_session_state()
+        benefit_categories = st.multiselect(
+            "중요 혜택",
+            ["편의점", "공과금", "통신비", "카페", "마트", "교통", "주유", "배달"]
+        )
 
-render_chat_messages(st.session_state.messages)
+    return {
+        "card_type": None if card_type == "전체" else card_type,
+        "max_base_perf_num": max_base_perf_num,
+        "max_annual_fee_domestic": max_annual_fee_domestic,
+        "benefit_categories": benefit_categories
+    }
 
-user_input = st.chat_input("예: 편의점, 통신비, 공과금 할인 좋고 실적 부담 적은 신용카드 추천해줘")
 
-if user_input:
-    st.session_state.messages.append({
-        "role": "user",
-        "content": user_input
-    })
+def render_chat_messages(messages):
+    for msg in messages:
+        with st.chat_message(msg["role"]):
+            st.markdown(msg["content"])
 
-    result = process_user_input(
-        user_input=user_input,
-        sidebar_filters=sidebar_filters,
-        api_key=api_key
-    )
 
-    st.session_state.user_prefs = result["preferences"]
-    st.session_state.last_cards = result["cards"]
+def render_card_list(cards):
+    for card in cards:
+        col1, col2 = st.columns([1, 2])
 
-    st.session_state.messages.append({
-        "role": "assistant",
-        "content": result["message"]
-    })
+        with col1:
+            if card.get("image_url"):
+                st.image(card["image_url"], use_container_width=True)
+            else:
+                st.info("이미지 없음")
 
-    st.rerun()
+        with col2:
+            st.markdown(f"### {card.get('card_name', '')}")
+            st.write(f"카드사: {card.get('company', '')}")
+            st.write(f"연회비: {card.get('annual_fee', '')}")
+            st.write(f"전월실적: {card.get('base_perf', '')}")
+            st.write(f"주요 혜택: {card.get('benefits', '')}")
 
-if st.session_state.last_cards:
-    st.markdown("---")
-    st.subheader("추천 카드")
-    render_card_list(st.session_state.last_cards)
+            if card.get("source_url"):
+                st.markdown(f"[상세 보기]({card['source_url']})")
+
+        st.divider()

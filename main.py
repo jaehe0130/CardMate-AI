@@ -1,177 +1,185 @@
 import uuid
 import streamlit as st
-
 from chatbot import build_chat_chain, ask_card_chatbot
 
 st.set_page_config(
-    page_title="CardMate AI",
-    page_icon="💳",
+    page_title="CardMate",
     layout="centered"
 )
 
+# ---------------- 스타일 ----------------
 st.markdown("""
 <style>
 .block-container {
-    max-width: 760px;
+    max-width: 820px;
     padding-top: 1.2rem;
-    padding-bottom: 2rem;
 }
+
 .stApp {
-    background: #f6f7fb;
+    background: #f4f6f9;
 }
-.top-wrap {
-    background: linear-gradient(135deg, #111111 0%, #2c2f36 100%);
-    border-radius: 22px;
-    padding: 24px 22px;
-    margin-bottom: 18px;
-    color: white;
-    box-shadow: 0 10px 30px rgba(0,0,0,0.12);
-}
-.top-title {
-    font-size: 2rem;
-    font-weight: 800;
-    margin-bottom: 0.3rem;
-}
-.top-subtitle {
-    font-size: 0.98rem;
-    color: rgba(255,255,255,0.82);
-    line-height: 1.5;
-}
-.quick-card {
-    background: white;
-    border: 1px solid #e9edf2;
+
+/* 상단 */
+.header-box {
+    background: #ffffff;
     border-radius: 18px;
-    padding: 16px;
-    margin-bottom: 14px;
-    box-shadow: 0 4px 14px rgba(0,0,0,0.04);
+    padding: 24px;
+    border: 1px solid #e5e7eb;
+    margin-bottom: 20px;
 }
-.quick-title {
-    font-size: 1rem;
+
+.title {
+    font-size: 1.8rem;
     font-weight: 700;
-    margin-bottom: 10px;
     color: #111;
 }
-[data-testid="stChatMessage"] {
-    background: white;
-    border: 1px solid #eceff3;
-    border-radius: 18px;
-    padding: 6px 4px;
-    margin-bottom: 10px;
-    box-shadow: 0 4px 14px rgba(0,0,0,0.03);
+
+.subtitle {
+    color: #6b7280;
+    margin-top: 6px;
+    font-size: 0.95rem;
 }
+
+/* 카드 추천 박스 */
+.result-card {
+    background: white;
+    border-radius: 16px;
+    padding: 18px;
+    margin-top: 14px;
+    border: 1px solid #e5e7eb;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.03);
+}
+
+.card-title {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: #111;
+}
+
+.card-sub {
+    font-size: 0.9rem;
+    color: #6b7280;
+    margin-bottom: 8px;
+}
+
+.card-info {
+    font-size: 0.9rem;
+    margin-top: 6px;
+}
+
+.label {
+    color: #6b7280;
+    font-size: 0.8rem;
+}
+
+/* 입력창 */
+.stChatInput input {
+    border-radius: 999px !important;
+}
+
+/* 버튼 */
 .stButton > button {
     border-radius: 999px;
-    border: 1px solid #e5e7eb;
+    border: 1px solid #d1d5db;
     background: white;
 }
 </style>
 """, unsafe_allow_html=True)
 
 
-def get_openai_api_key() -> str:
-    # Streamlit Cloud secrets 우선
+# ---------------- API KEY ----------------
+def get_api_key():
     if "OPENAI_API_KEY" in st.secrets:
         return st.secrets["OPENAI_API_KEY"]
-    raise ValueError("Streamlit secrets에 OPENAI_API_KEY를 설정해주세요.")
+    raise ValueError("OPENAI_API_KEY가 secrets에 없습니다.")
 
 
 @st.cache_resource
-def get_cached_chain(api_key: str):
+def get_chain(api_key):
     return build_chat_chain(api_key)
 
 
-api_key = get_openai_api_key()
-chain = get_cached_chain(api_key)
+api_key = get_api_key()
+chain = get_chain(api_key)
 
+
+# ---------------- 상태 ----------------
 if "messages" not in st.session_state:
-    st.session_state.messages = [
-        {
-            "role": "assistant",
-            "content": "안녕하세요. 카드 추천과 혜택 안내를 도와드릴게요."
-        }
-    ]
+    st.session_state.messages = []
 
 if "session_id" not in st.session_state:
-    st.session_state.session_id = f"cardmate-{uuid.uuid4().hex[:10]}"
-
-if "pending_prompt" not in st.session_state:
-    st.session_state.pending_prompt = None
+    st.session_state.session_id = f"user-{uuid.uuid4().hex[:8]}"
 
 
-def reset_chat():
-    st.session_state.messages = [
-        {
-            "role": "assistant",
-            "content": "새 대화를 시작했어요. 원하는 카드 조건을 말씀해주세요."
-        }
-    ]
-    st.session_state.session_id = f"cardmate-{uuid.uuid4().hex[:10]}"
-    st.session_state.pending_prompt = None
-
-
-with st.sidebar:
-    st.markdown("### CardMate AI")
-    st.caption("카드 추천 챗봇")
-    if st.button("새 대화", use_container_width=True):
-        reset_chat()
-        st.rerun()
-
+# ---------------- 헤더 ----------------
 st.markdown("""
-<div class="top-wrap">
-    <div class="top-title">CardMate AI</div>
-    <div class="top-subtitle">
-        Streamlit Secrets 기반으로 안전하게 키를 읽고,
-        시맨틱 검색으로 카드 추천을 도와드려요.
+<div class="header-box">
+    <div class="title">CardMate</div>
+    <div class="subtitle">
+        카드 혜택, 연회비, 전월실적을 비교하고 가장 적합한 카드를 추천합니다.
     </div>
 </div>
 """, unsafe_allow_html=True)
 
-st.markdown("""
-<div class="quick-card">
-    <div class="quick-title">빠르게 시작하기</div>
-</div>
-""", unsafe_allow_html=True)
 
-chip_cols = st.columns(4)
-chip_prompts = [
-    "카페 할인 좋은 카드 3개 추천해줘",
-    "해외결제 혜택 좋은 카드 추천해줘",
-    "연회비 낮은 체크카드 추천해줘",
-    "편의점 혜택 좋은 카드 추천해줘",
+# ---------------- 추천 버튼 ----------------
+col1, col2, col3, col4 = st.columns(4)
+
+quick_inputs = [
+    "카페 할인 좋은 카드 추천",
+    "해외결제 혜택 카드",
+    "연회비 낮은 체크카드",
+    "편의점 할인 카드"
 ]
 
-for col, prompt in zip(chip_cols, chip_prompts):
+for col, q in zip([col1, col2, col3, col4], quick_inputs):
     with col:
-        if st.button(prompt.split(" ")[0], use_container_width=True):
-            st.session_state.pending_prompt = prompt
+        if st.button(q.split()[0]):
+            st.session_state.messages.append({"role": "user", "content": q})
 
-for message in st.session_state.messages:
-    with st.chat_message(message["role"]):
-        st.markdown(message["content"])
 
-user_input = st.chat_input("예: 연회비 낮고 카페 할인 좋은 체크카드 추천해줘")
-final_input = user_input or st.session_state.pending_prompt
+# ---------------- 채팅 출력 ----------------
+for msg in st.session_state.messages:
+    with st.chat_message(msg["role"]):
+        st.markdown(msg["content"])
 
-if final_input:
-    if st.session_state.pending_prompt:
-        st.session_state.pending_prompt = None
 
-    st.session_state.messages.append({"role": "user", "content": final_input})
+# ---------------- 입력 ----------------
+user_input = st.chat_input("카드 조건을 입력하세요")
+
+if user_input:
+    st.session_state.messages.append({"role": "user", "content": user_input})
 
     with st.chat_message("user"):
-        st.markdown(final_input)
+        st.markdown(user_input)
 
     with st.chat_message("assistant"):
-        with st.spinner("카드 정보를 찾고 있어요..."):
+        with st.spinner("추천 중..."):
             try:
                 response = ask_card_chatbot(
-                    question=final_input,
+                    question=user_input,
                     chain=chain,
                     session_id=st.session_state.session_id
                 )
             except Exception as e:
-                response = f"오류가 발생했습니다: {e}"
+                response = f"오류: {e}"
 
-            st.markdown(response)
+        # 👉 카드 형태로 출력
+        parts = response.split("###")
+
+        for p in parts:
+            if len(p.strip()) < 10:
+                continue
+
+            lines = p.strip().split("\n")
+
+            title = lines[0]
+
+            st.markdown(f"""
+            <div class="result-card">
+                <div class="card-title">{title}</div>
+                <div class="card-info">{'<br>'.join(lines[1:])}</div>
+            </div>
+            """, unsafe_allow_html=True)
 
     st.session_state.messages.append({"role": "assistant", "content": response})

@@ -21,7 +21,7 @@ def build_chat_chain(openai_api_key: str):
     hybrid_retriever = get_advanced_hybrid_retriever(openai_api_key)
 
     llm = ChatOpenAI(
-        model="gpt-4o-mini",
+        model="gpt-3.5-turbo",
         api_key=openai_api_key,
         temperature=0.1
     )

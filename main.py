@@ -1,7 +1,6 @@
 import streamlit as st
 from utils import (
     load_card_data,
-    build_card_text,
     get_card_image,
     get_card_name,
     get_card_company,
@@ -11,13 +10,10 @@ from utils import (
     get_card_perf,
     get_card_brands,
     get_card_url,
-    get_base_perf_num,
     summarize_user_profile,
 )
+from recommender import recommend_cards
 
-# =========================
-# 페이지 설정
-# =========================
 st.set_page_config(
     page_title="CardMate AI",
     page_icon="💳",
@@ -25,9 +21,6 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# =========================
-# 스타일
-# =========================
 st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Pretendard:wght@400;500;600;700;800&display=swap');
@@ -46,15 +39,6 @@ html, body, [class*="css"] {
     padding-bottom: 1rem;
 }
 
-.app-shell {
-    background: #ffffff;
-    border: 1px solid #e9e9e9;
-    border-radius: 28px;
-    padding: 18px 16px 20px 16px;
-    min-height: 700px;
-    box-shadow: 0 10px 30px rgba(0,0,0,0.05);
-}
-
 .app-title {
     font-size: 1.9rem;
     font-weight: 800;
@@ -66,6 +50,15 @@ html, body, [class*="css"] {
     color: #666666;
     font-size: 0.95rem;
     margin-bottom: 1rem;
+}
+
+.app-shell {
+    background: #ffffff;
+    border: 1px solid #e9e9e9;
+    border-radius: 28px;
+    padding: 18px 16px 20px 16px;
+    min-height: 700px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.05);
 }
 
 .bot-bubble {
@@ -127,18 +120,12 @@ html, body, [class*="css"] {
 </style>
 """, unsafe_allow_html=True)
 
-# =========================
-# 데이터 로드
-# =========================
 @st.cache_data
 def get_cards():
     return load_card_data()
 
 cards = get_cards()
 
-# =========================
-# 세션 상태
-# =========================
 if "step" not in st.session_state:
     st.session_state.step = 0
 
@@ -153,9 +140,6 @@ if "answers" not in st.session_state:
 if "recommended_cards" not in st.session_state:
     st.session_state.recommended_cards = []
 
-# =========================
-# 화면
-# =========================
 st.markdown('<div class="app-title">CardMate AI</div>', unsafe_allow_html=True)
 st.markdown('<div class="app-subtitle">카드사 챗봇처럼 몇 가지 질문 후 맞춤 카드를 추천해드려요.</div>', unsafe_allow_html=True)
 
@@ -166,7 +150,6 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-# 빠른 선택 버튼
 quick_cols = st.columns(3)
 quick_buttons = ["카페", "교통", "해외결제"]
 
@@ -174,13 +157,11 @@ for idx, item in enumerate(quick_buttons):
     with quick_cols[idx]:
         if st.button(item, use_container_width=True):
             st.session_state.answers["main_use"] = item
-            if st.session_state.step < 2:
-                st.session_state.step = 2
+            if st.session_state.answers["card_type"] is None:
+                st.session_state.answers["card_type"] = "상관없음"
+            st.session_state.step = 2
             st.rerun()
 
-# =========================
-# STEP 0
-# =========================
 if st.session_state.step == 0:
     st.markdown('<div class="bot-bubble">1. 어떤 카드가 필요하신가요?</div>', unsafe_allow_html=True)
 
@@ -195,14 +176,8 @@ if st.session_state.step == 0:
         st.session_state.step = 1
         st.rerun()
 
-# =========================
-# STEP 1
-# =========================
 elif st.session_state.step == 1:
-    st.markdown(
-        f'<div class="user-bubble">{st.session_state.answers.get("card_type")}</div>',
-        unsafe_allow_html=True
-    )
+    st.markdown(f'<div class="user-bubble">{st.session_state.answers.get("card_type")}</div>', unsafe_allow_html=True)
     st.markdown('<div class="bot-bubble">2. 카드를 주로 어디에 사용하실 예정인가요?</div>', unsafe_allow_html=True)
 
     selected = st.selectbox(
@@ -216,12 +191,8 @@ elif st.session_state.step == 1:
         st.session_state.step = 2
         st.rerun()
 
-# =========================
-# STEP 2
-# =========================
 elif st.session_state.step == 2:
-    main_use = st.session_state.answers.get("main_use", "미선택")
-    st.markdown(f'<div class="user-bubble">{main_use}</div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="user-bubble">{st.session_state.answers.get("main_use", "미선택")}</div>', unsafe_allow_html=True)
     st.markdown('<div class="bot-bubble">3. 월 카드 사용액은 어느 정도인가요?</div>', unsafe_allow_html=True)
 
     selected = st.radio(
@@ -235,14 +206,8 @@ elif st.session_state.step == 2:
         st.session_state.step = 3
         st.rerun()
 
-# =========================
-# STEP 3
-# =========================
 elif st.session_state.step == 3:
-    st.markdown(
-        f'<div class="user-bubble">{st.session_state.answers.get("monthly_spend")}</div>',
-        unsafe_allow_html=True
-    )
+    st.markdown(f'<div class="user-bubble">{st.session_state.answers.get("monthly_spend")}</div>', unsafe_allow_html=True)
     st.markdown('<div class="bot-bubble">4. 추가로 자주 쓰는 업종이 있다면 하나 더 골라주세요.</div>', unsafe_allow_html=True)
 
     selected = st.selectbox(
@@ -253,20 +218,18 @@ elif st.session_state.step == 3:
 
     if st.button("추천 받기", use_container_width=True):
         st.session_state.answers["extra_use"] = selected
-        st.session_state.recommended_cards = recommend_cards(cards, st.session_state.answers, top_k=3)
+        st.session_state.recommended_cards = recommend_cards(
+            cards,
+            st.session_state.answers,
+            top_k=3
+        )
         st.session_state.step = 4
         st.rerun()
 
-# =========================
-# RESULT
-# =========================
 elif st.session_state.step == 4:
+    st.markdown(f'<div class="user-bubble">{st.session_state.answers.get("extra_use")}</div>', unsafe_allow_html=True)
     st.markdown(
-        f'<div class="user-bubble">{st.session_state.answers.get("extra_use")}</div>',
-        unsafe_allow_html=True
-    )
-    st.markdown(
-        '<div class="bot-bubble"><b>추천 카드 3개를 찾았어요.</b><br>혜택과 전월실적을 함께 확인해보세요.</div>',
+        '<div class="bot-bubble"><b>추천 카드 3개를 찾았어요.</b><br>혜택과 전월 실적을 함께 확인해보세요.</div>',
         unsafe_allow_html=True
     )
 
@@ -280,19 +243,15 @@ elif st.session_state.step == 4:
             st.image(image_url, width=220)
 
         st.markdown(f'<div class="card-title">{get_card_name(card)}</div>', unsafe_allow_html=True)
-        st.markdown(
-            f'<div class="card-sub">{get_card_company(card)} · {get_card_type(card)}</div>',
-            unsafe_allow_html=True
-        )
+        st.markdown(f'<div class="card-sub">{get_card_company(card)} · {get_card_type(card)}</div>', unsafe_allow_html=True)
 
         st.write(f"**주요 혜택**: {get_card_benefit(card)[:250]}")
         st.write(f"**연회비**: {get_card_annual_fee(card)}")
         st.write(f"**전월 실적**: {get_card_perf(card)}")
 
         brands = get_card_brands(card)
-        if brands:
-            for brand in brands[:4]:
-                st.markdown(f'<span class="tag">{brand}</span>', unsafe_allow_html=True)
+        for brand in brands[:4]:
+            st.markdown(f'<span class="tag">{brand}</span>', unsafe_allow_html=True)
 
         url = get_card_url(card)
         if url:
@@ -316,7 +275,11 @@ elif st.session_state.step == 4:
 
     with col2:
         if st.button("다시 추천", use_container_width=True):
-            st.session_state.recommended_cards = recommend_cards(cards, st.session_state.answers, top_k=3)
+            st.session_state.recommended_cards = recommend_cards(
+                cards,
+                st.session_state.answers,
+                top_k=3
+            )
             st.rerun()
 
 st.markdown('</div>', unsafe_allow_html=True)

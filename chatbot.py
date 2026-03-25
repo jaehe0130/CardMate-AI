@@ -1,137 +1,98 @@
-from recommender import get_card_recommendation
+import os
+from dotenv import load_dotenv
 
+from langchain_openai import ChatOpenAI
+from langchain_core.runnables import RunnablePassthrough
+from langchain_core.output_parsers import StrOutputParser
+from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
+from langchain_community.chat_message_histories import ChatMessageHistory
+from langchain_core.runnables.history import RunnableWithMessageHistory
 
-def init_session_state():
-    import streamlit as st
+from recommender import load_vector_db
+from utils import format_docs
 
-    if "messages" not in st.session_state:
-        st.session_state.messages = [
-            {
-                "role": "assistant",
-                "content": "안녕하세요. 자주 쓰는 소비처와 원하는 조건을 말해주시면 카드 추천을 도와드릴게요."
-            }
-        ]
+load_dotenv()
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
-    if "user_prefs" not in st.session_state:
-        st.session_state.user_prefs = {
-            "card_type": None,
-            "benefit_categories": [],
-            "max_annual_fee_domestic": None,
-            "max_base_perf_num": None
-        }
+# 1. Vector DB / Retriever
+vector_db = load_vector_db()
+retriever = vector_db.as_retriever(search_kwargs={"k": 3})
 
-    if "last_cards" not in st.session_state:
-        st.session_state.last_cards = []
+# 2. LLM
+llm = ChatOpenAI(
+    model="gpt-4o-mini",
+    api_key=OPENAI_API_KEY,
+    temperature=0.2
+)
 
+# 3. Prompt
+system_prompt = """당신은 대한민국 카드 추천 및 혜택 안내를 도와주는 금융 챗봇입니다.
+사용자의 질문과 제공된 [카드 혜택 정보(Context)]만 바탕으로 정확하게 답변하세요.
 
-def extract_user_preferences(user_text: str):
-    prefs = {
-        "card_type": None,
-        "benefit_categories": [],
-        "max_annual_fee_domestic": None,
-        "max_base_perf_num": None
-    }
+[답변 규칙]
+1. 반드시 Context 안에 있는 정보만 사용하세요.
+2. 정보가 불충분하면 추측하지 말고, "제공된 카드 정보만으로는 확인이 어렵습니다."라고 답하세요.
+3. 사용자가 잘못된 정보를 말해도 그대로 동조하지 말고, Context 기준으로 정정하세요.
+4. 답변은 친절하고 간결하게 작성하세요.
+5. 카드명, 연회비, 전월실적, 핵심 혜택이 있으면 우선적으로 정리하세요.
+6. 추천 요청이면 최대 3개 카드까지 정리하세요.
+7. 마크다운 글머리표를 사용해 깔끔하게 보여주세요.
 
-    text = user_text.lower()
+[카드 혜택 정보(Context)]
+{context}
+"""
 
-    if "신용" in user_text:
-        prefs["card_type"] = "신용카드"
-    elif "체크" in user_text:
-        prefs["card_type"] = "체크카드"
+prompt = ChatPromptTemplate.from_messages([
+    ("system", system_prompt),
+    MessagesPlaceholder(variable_name="history"),
+    ("human", "{question}")
+])
 
-    keyword_map = {
-        "편의점": ["편의점", "cu", "gs25", "세븐일레븐"],
-        "공과금": ["공과금", "관리비", "전기요금", "도시가스", "수도요금"],
-        "통신비": ["통신", "통신비", "skt", "kt", "lg"],
-        "카페": ["카페", "스타벅스", "커피"],
-        "교통": ["교통", "버스", "지하철", "택시"],
-        "마트": ["마트", "이마트", "홈플러스", "롯데마트"],
-        "주유": ["주유", "주유소"],
-        "배달": ["배달", "배달의민족", "요기요", "쿠팡이츠"],
-    }
-
-    for cat, keywords in keyword_map.items():
-        if any(k in text for k in keywords):
-            prefs["benefit_categories"].append(cat)
-
-    if "실적" in user_text and ("낮" in user_text or "부담" in user_text or "너무 높" in user_text):
-        prefs["max_base_perf_num"] = 300000
-
-    if "연회비" in user_text and ("낮" in user_text or "저렴" in user_text or "부담" in user_text):
-        prefs["max_annual_fee_domestic"] = 20000
-
-    return prefs
-
-
-def update_preferences(old_prefs: dict, new_prefs: dict):
-    if new_prefs["card_type"]:
-        old_prefs["card_type"] = new_prefs["card_type"]
-
-    if new_prefs["benefit_categories"]:
-        merged = set(old_prefs.get("benefit_categories", [])) | set(new_prefs["benefit_categories"])
-        old_prefs["benefit_categories"] = list(merged)
-
-    if new_prefs["max_annual_fee_domestic"] is not None:
-        old_prefs["max_annual_fee_domestic"] = new_prefs["max_annual_fee_domestic"]
-
-    if new_prefs["max_base_perf_num"] is not None:
-        old_prefs["max_base_perf_num"] = new_prefs["max_base_perf_num"]
-
-    return old_prefs
-
-
-def merge_sidebar_preferences(current_prefs: dict, sidebar_filters: dict):
-    if sidebar_filters["card_type"] is not None:
-        current_prefs["card_type"] = sidebar_filters["card_type"]
-
-    if sidebar_filters["max_base_perf_num"] is not None:
-        current_prefs["max_base_perf_num"] = sidebar_filters["max_base_perf_num"]
-
-    if sidebar_filters["max_annual_fee_domestic"] is not None:
-        current_prefs["max_annual_fee_domestic"] = sidebar_filters["max_annual_fee_domestic"]
-
-    if sidebar_filters["benefit_categories"]:
-        current_prefs["benefit_categories"] = sidebar_filters["benefit_categories"]
-
-    return current_prefs
-
-
-def is_ready_for_recommendation(prefs: dict):
-    if not prefs.get("card_type"):
-        return False, "신용카드와 체크카드 중 어떤 카드를 찾으시는지 알려주세요."
-
-    if not prefs.get("benefit_categories"):
-        return False, "편의점, 통신비, 공과금, 카페, 교통 중 자주 쓰는 소비처를 알려주세요."
-
-    return True, None
-
-
-def process_user_input(user_input: str, sidebar_filters: dict, api_key: str | None):
-    import streamlit as st
-
-    current_prefs = st.session_state.user_prefs.copy()
-
-    new_prefs = extract_user_preferences(user_input)
-    current_prefs = update_preferences(current_prefs, new_prefs)
-    current_prefs = merge_sidebar_preferences(current_prefs, sidebar_filters)
-
-    ready, followup = is_ready_for_recommendation(current_prefs)
-
-    if not ready:
-        return {
-            "message": followup,
-            "preferences": current_prefs,
-            "cards": []
-        }
-
-    response = get_card_recommendation(
-        user_input=user_input,
-        preferences=current_prefs,
-        api_key=api_key
+# 4. 기본 체인
+base_chain = (
+    RunnablePassthrough.assign(
+        context=lambda x: format_docs(retriever.invoke(x["question"]))
     )
+    | prompt
+    | llm
+    | StrOutputParser()
+)
 
-    return {
-        "message": response["result"],
-        "preferences": current_prefs,
-        "cards": response["cards"]
-    }
+# 5. 메모리 저장소
+store = {}
+
+
+def get_session_history(session_id: str):
+    if session_id not in store:
+        store[session_id] = ChatMessageHistory()
+    return store[session_id]
+
+
+conversational_chain = RunnableWithMessageHistory(
+    base_chain,
+    get_session_history,
+    input_messages_key="question",
+    history_messages_key="history",
+)
+
+
+def ask_card_chatbot(question: str, session_id: str = "default_user") -> str:
+    config = {"configurable": {"session_id": session_id}}
+    response = conversational_chain.invoke(
+        {"question": question},
+        config=config
+    )
+    return response
+
+
+if __name__ == "__main__":
+    session_id = "test_room"
+
+    q1 = "연회비 낮고 카페 혜택 좋은 카드 추천해줘"
+    print("Q1:", q1)
+    print(ask_card_chatbot(q1, session_id=session_id))
+    print("-" * 50)
+
+    q2 = "그중에서 전월실적 조건이 가장 낮은 건 뭐야?"
+    print("Q2:", q2)
+    print(ask_card_chatbot(q2, session_id=session_id))

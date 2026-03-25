@@ -1,0 +1,1052 @@
+[
+    {
+        "Rank":1,
+        "Card_Name":"카드의정석 SHOPPING+",
+        "Card_Company":"우리카드",
+        "Card_Type":"신용카드",
+        "Rank_Category":"top100"
+    },
+    {
+        "Rank":2,
+        "Card_Name":"신한카드 Mr.Life",
+        "Card_Company":"신한카드",
+        "Card_Type":"신용카드",
+        "Rank_Category":"top100"
+    },
+    {
+        "Rank":3,
+        "Card_Name":"삼성카드 & MILEAGE PLATINUM (스카이패스)",
+        "Card_Company":"삼성카드",
+        "Card_Type":"신용카드",
+        "Rank_Category":"top100"
+    },
+    {
+        "Rank":4,
+        "Card_Name":"삼성 iD SELECT ALL 카드",
+        "Card_Company":"삼성카드",
+        "Card_Type":"신용카드",
+        "Rank_Category":"top100"
+    },
+    {
+        "Rank":5,
+        "Card_Name":"KB국민 My WE:SH 카드",
+        "Card_Company":"KB국민카드",
+        "Card_Type":"신용카드",
+        "Rank_Category":"top100"
+    },
+    {
+        "Rank":6,
+        "Card_Name":"신한카드 Discount Plan+",
+        "Card_Company":"신한카드",
+        "Card_Type":"신용카드",
+        "Rank_Category":"top100"
+    },
+    {
+        "Rank":7,
+        "Card_Name":"LOCA 365 카드",
+        "Card_Company":"롯데카드",
+        "Card_Type":"신용카드",
+        "Rank_Category":"top100"
+    },
+    {
+        "Rank":8,
+        "Card_Name":"삼성카드 taptap O",
+        "Card_Company":"삼성카드",
+        "Card_Type":"신용카드",
+        "Rank_Category":"top100"
+    },
+    {
+        "Rank":9,
+        "Card_Name":"신한카드 처음(ANNIVERSE)",
+        "Card_Company":"신한카드",
+        "Card_Type":"신용카드",
+        "Rank_Category":"top100"
+    },
+    {
+        "Rank":10,
+        "Card_Name":"THE 1 (스카이패스)",
+        "Card_Company":"삼성카드",
+        "Card_Type":"신용카드",
+        "Rank_Category":"top100"
+    },
+    {
+        "Rank":11,
+        "Card_Name":"American Express® Gold Card Edition2",
+        "Card_Company":"현대카드",
+        "Card_Type":"신용카드",
+        "Rank_Category":"top100"
+    },
+    {
+        "Rank":12,
+        "Card_Name":"올바른 FLEX 카드",
+        "Card_Company":"NH농협카드",
+        "Card_Type":"신용카드",
+        "Rank_Category":"top100"
+    },
+    {
+        "Rank":13,
+        "Card_Name":"LOCA LIKIT 1.2",
+        "Card_Company":"롯데카드",
+        "Card_Type":"신용카드",
+        "Rank_Category":"top100"
+    },
+    {
+        "Rank":14,
+        "Card_Name":"카드의정석2",
+        "Card_Company":"우리카드",
+        "Card_Type":"신용카드",
+        "Rank_Category":"top100"
+    },
+    {
+        "Rank":15,
+        "Card_Name":"굿데이카드",
+        "Card_Company":"KB국민카드",
+        "Card_Type":"신용카드",
+        "Rank_Category":"top100"
+    },
+    {
+        "Rank":16,
+        "Card_Name":"디지로카 London",
+        "Card_Company":"롯데카드",
+        "Card_Type":"신용카드",
+        "Rank_Category":"top100"
+    },
+    {
+        "Rank":17,
+        "Card_Name":"삼성 iD SIMPLE 카드",
+        "Card_Company":"삼성카드",
+        "Card_Type":"신용카드",
+        "Rank_Category":"top100"
+    },
+    {
+        "Rank":18,
+        "Card_Name":"대한항공카드 300",
+        "Card_Company":"현대카드",
+        "Card_Type":"신용카드",
+        "Rank_Category":"top100"
+    },
+    {
+        "Rank":19,
+        "Card_Name":"우리카드 MILE&POINT",
+        "Card_Company":"우리카드",
+        "Card_Type":"신용카드",
+        "Rank_Category":"top100"
+    },
+    {
+        "Rank":20,
+        "Card_Name":"쿠팡 와우카드",
+        "Card_Company":"KB국민카드",
+        "Card_Type":"신용카드",
+        "Rank_Category":"top100"
+    },
+    {
+        "Rank":21,
+        "Card_Name":"WE:SH Travel",
+        "Card_Company":"KB국민카드",
+        "Card_Type":"신용카드",
+        "Rank_Category":"top100"
+    },
+    {
+        "Rank":22,
+        "Card_Name":"신한카드 Deep Oil",
+        "Card_Company":"신한카드",
+        "Card_Type":"신용카드",
+        "Rank_Category":"top100"
+    },
+    {
+        "Rank":23,
+        "Card_Name":"삼성 iD GLOBAL 카드",
+        "Card_Company":"삼성카드",
+        "Card_Type":"신용카드",
+        "Rank_Category":"top100"
+    },
+    {
+        "Rank":24,
+        "Card_Name":"삼성 iD SELECT ON 카드",
+        "Card_Company":"삼성카드",
+        "Card_Type":"신용카드",
+        "Rank_Category":"top100"
+    },
+    {
+        "Rank":25,
+        "Card_Name":"카드의정석 EVERY DISCOUNT",
+        "Card_Company":"우리카드",
+        "Card_Type":"신용카드",
+        "Rank_Category":"top100"
+    },
+    {
+        "Rank":26,
+        "Card_Name":"taptap DIGITAL",
+        "Card_Company":"삼성카드",
+        "Card_Type":"신용카드",
+        "Rank_Category":"top100"
+    },
+    {
+        "Rank":27,
+        "Card_Name":"카드의정석 EVERY MILE SKYPASS",
+        "Card_Company":"우리카드",
+        "Card_Type":"신용카드",
+        "Rank_Category":"top100"
+    },
+    {
+        "Rank":28,
+        "Card_Name":"현대카드ZERO Edition3(할인형)",
+        "Card_Company":"현대카드",
+        "Card_Type":"신용카드",
+        "Rank_Category":"top100"
+    },
+    {
+        "Rank":29,
+        "Card_Name":"신한카드 Air One",
+        "Card_Company":"신한카드",
+        "Card_Type":"신용카드",
+        "Rank_Category":"top100"
+    },
+    {
+        "Rank":30,
+        "Card_Name":"우리카드 7CORE",
+        "Card_Company":"우리카드",
+        "Card_Type":"신용카드",
+        "Rank_Category":"top100"
+    },
+    {
+        "Rank":31,
+        "Card_Name":"신한카드 Point Plan",
+        "Card_Company":"신한카드",
+        "Card_Type":"신용카드",
+        "Rank_Category":"top100"
+    },
+    {
+        "Rank":32,
+        "Card_Name":"대한항공카드 060",
+        "Card_Company":"현대카드",
+        "Card_Type":"신용카드",
+        "Rank_Category":"top100"
+    },
+    {
+        "Rank":33,
+        "Card_Name":"디지로카 Las Vegas",
+        "Card_Company":"롯데카드",
+        "Card_Type":"신용카드",
+        "Rank_Category":"top100"
+    },
+    {
+        "Rank":34,
+        "Card_Name":"굿데이올림카드",
+        "Card_Company":"KB국민카드",
+        "Card_Type":"신용카드",
+        "Rank_Category":"top100"
+    },
+    {
+        "Rank":35,
+        "Card_Name":"the OPUS silver",
+        "Card_Company":"우리카드",
+        "Card_Type":"신용카드",
+        "Rank_Category":"top100"
+    },
+    {
+        "Rank":36,
+        "Card_Name":"신한카드 The CLASSIC-S",
+        "Card_Company":"신한카드",
+        "Card_Type":"신용카드",
+        "Rank_Category":"top100"
+    },
+    {
+        "Rank":37,
+        "Card_Name":"JADE Classic",
+        "Card_Company":"하나카드",
+        "Card_Type":"신용카드",
+        "Rank_Category":"top100"
+    },
+    {
+        "Rank":38,
+        "Card_Name":"현대카드 M",
+        "Card_Company":"현대카드",
+        "Card_Type":"신용카드",
+        "Rank_Category":"top100"
+    },
+    {
+        "Rank":39,
+        "Card_Name":"메리어트 본보이™ 더 베스트 신한카드",
+        "Card_Company":"신한카드",
+        "Card_Type":"신용카드",
+        "Rank_Category":"top100"
+    },
+    {
+        "Rank":40,
+        "Card_Name":"THE iD. 1st",
+        "Card_Company":"삼성카드",
+        "Card_Type":"신용카드",
+        "Rank_Category":"top100"
+    },
+    {
+        "Rank":41,
+        "Card_Name":"K-패스 (신용)",
+        "Card_Company":"IBK기업은행",
+        "Card_Type":"신용카드",
+        "Rank_Category":"top100"
+    },
+    {
+        "Rank":42,
+        "Card_Name":"zgm.streaming카드",
+        "Card_Company":"NH농협카드",
+        "Card_Type":"신용카드",
+        "Rank_Category":"top100"
+    },
+    {
+        "Rank":43,
+        "Card_Name":"대한항공카드 the First Edition2",
+        "Card_Company":"현대카드",
+        "Card_Type":"신용카드",
+        "Rank_Category":"top100"
+    },
+    {
+        "Rank":44,
+        "Card_Name":"GOAT BC 바로카드",
+        "Card_Company":"BC 바로카드",
+        "Card_Type":"신용카드",
+        "Rank_Category":"top100"
+    },
+    {
+        "Rank":45,
+        "Card_Name":"삼성카드 스페셜마일리지(스카이패스)",
+        "Card_Company":"삼성카드",
+        "Card_Type":"신용카드",
+        "Rank_Category":"top100"
+    },
+    {
+        "Rank":46,
+        "Card_Name":"the Orange",
+        "Card_Company":"현대카드",
+        "Card_Type":"신용카드",
+        "Rank_Category":"top100"
+    },
+    {
+        "Rank":47,
+        "Card_Name":"현대카드 ZERO Up",
+        "Card_Company":"현대카드",
+        "Card_Type":"신용카드",
+        "Rank_Category":"top100"
+    },
+    {
+        "Rank":48,
+        "Card_Name":"에너지플러스 현대카드",
+        "Card_Company":"현대카드",
+        "Card_Type":"신용카드",
+        "Rank_Category":"top100"
+    },
+    {
+        "Rank":49,
+        "Card_Name":"zgm.play카드",
+        "Card_Company":"NH농협카드",
+        "Card_Type":"신용카드",
+        "Rank_Category":"top100"
+    },
+    {
+        "Rank":50,
+        "Card_Name":"DA카드의정석Ⅱ",
+        "Card_Company":"우리카드",
+        "Card_Type":"신용카드",
+        "Rank_Category":"top100"
+    },
+    {
+        "Rank":51,
+        "Card_Name":"현대카드 Summit",
+        "Card_Company":"현대카드",
+        "Card_Type":"신용카드",
+        "Rank_Category":"top100"
+    },
+    {
+        "Rank":52,
+        "Card_Name":"카드의정석 TEN",
+        "Card_Company":"우리카드",
+        "Card_Type":"신용카드",
+        "Rank_Category":"top100"
+    },
+    {
+        "Rank":53,
+        "Card_Name":"zgm.일본여행중 카드",
+        "Card_Company":"NH농협카드",
+        "Card_Type":"신용카드",
+        "Rank_Category":"top100"
+    },
+    {
+        "Rank":54,
+        "Card_Name":"Haru(Hoshino Resorts)",
+        "Card_Company":"신한카드",
+        "Card_Type":"신용카드",
+        "Rank_Category":"top100"
+    },
+    {
+        "Rank":55,
+        "Card_Name":"대한항공카드 120",
+        "Card_Company":"현대카드",
+        "Card_Type":"신용카드",
+        "Rank_Category":"top100"
+    },
+    {
+        "Rank":56,
+        "Card_Name":"American Express® Reserve",
+        "Card_Company":"삼성카드",
+        "Card_Type":"신용카드",
+        "Rank_Category":"top100"
+    },
+    {
+        "Rank":57,
+        "Card_Name":"IBK포인트(신용)",
+        "Card_Company":"IBK기업은행",
+        "Card_Type":"신용카드",
+        "Rank_Category":"top100"
+    },
+    {
+        "Rank":58,
+        "Card_Name":"현대카드T",
+        "Card_Company":"현대카드",
+        "Card_Type":"신용카드",
+        "Rank_Category":"top100"
+    },
+    {
+        "Rank":59,
+        "Card_Name":"American Express® Green Card Edition2",
+        "Card_Company":"현대카드",
+        "Card_Type":"신용카드",
+        "Rank_Category":"top100"
+    },
+    {
+        "Rank":60,
+        "Card_Name":"신한카드 Point Plan+",
+        "Card_Company":"신한카드",
+        "Card_Type":"신용카드",
+        "Rank_Category":"top100"
+    },
+    {
+        "Rank":61,
+        "Card_Name":"토스뱅크 하나카드 Day",
+        "Card_Company":"하나카드",
+        "Card_Type":"신용카드",
+        "Rank_Category":"top100"
+    },
+    {
+        "Rank":62,
+        "Card_Name":"카드의정석 EVERY POINT",
+        "Card_Company":"우리카드",
+        "Card_Type":"신용카드",
+        "Rank_Category":"top100"
+    },
+    {
+        "Rank":63,
+        "Card_Name":"BC 바로 클리어 플러스",
+        "Card_Company":"BC 바로카드",
+        "Card_Type":"신용카드",
+        "Rank_Category":"top100"
+    },
+    {
+        "Rank":64,
+        "Card_Name":"삼성 iD ALL 카드",
+        "Card_Company":"삼성카드",
+        "Card_Type":"신용카드",
+        "Rank_Category":"top100"
+    },
+    {
+        "Rank":65,
+        "Card_Name":"클래시 트래블카드",
+        "Card_Company":"NH농협카드",
+        "Card_Type":"신용카드",
+        "Rank_Category":"top100"
+    },
+    {
+        "Rank":66,
+        "Card_Name":"I-Mileage (대한항공)",
+        "Card_Company":"IBK기업은행",
+        "Card_Type":"신용카드",
+        "Rank_Category":"top100"
+    },
+    {
+        "Rank":67,
+        "Card_Name":"HERITAGE Smart [대한항공 마일리지형]",
+        "Card_Company":"KB국민카드",
+        "Card_Type":"신용카드",
+        "Rank_Category":"top100"
+    },
+    {
+        "Rank":68,
+        "Card_Name":"하나 스카이패스 아멕스 플래티늄 카드",
+        "Card_Company":"하나카드",
+        "Card_Type":"신용카드",
+        "Rank_Category":"top100"
+    },
+    {
+        "Rank":69,
+        "Card_Name":"I-ALL",
+        "Card_Company":"IBK기업은행",
+        "Card_Type":"신용카드",
+        "Rank_Category":"top100"
+    },
+    {
+        "Rank":70,
+        "Card_Name":"삼성 iD ON 카드",
+        "Card_Company":"삼성카드",
+        "Card_Type":"신용카드",
+        "Rank_Category":"top100"
+    },
+    {
+        "Rank":71,
+        "Card_Name":"현대카드MY BUSINESS M F&B",
+        "Card_Company":"현대카드",
+        "Card_Type":"신용카드",
+        "Rank_Category":"top100"
+    },
+    {
+        "Rank":72,
+        "Card_Name":"트래블로그 신용카드",
+        "Card_Company":"하나카드",
+        "Card_Type":"신용카드",
+        "Rank_Category":"top100"
+    },
+    {
+        "Rank":73,
+        "Card_Name":"현대카드O",
+        "Card_Company":"현대카드",
+        "Card_Type":"신용카드",
+        "Rank_Category":"top100"
+    },
+    {
+        "Rank":74,
+        "Card_Name":"카드의정석 I&U+",
+        "Card_Company":"우리카드",
+        "Card_Type":"신용카드",
+        "Rank_Category":"top100"
+    },
+    {
+        "Rank":75,
+        "Card_Name":"가온올림카드(실속형)",
+        "Card_Company":"KB국민카드",
+        "Card_Type":"신용카드",
+        "Rank_Category":"top100"
+    },
+    {
+        "Rank":76,
+        "Card_Name":"네이버페이 taptap",
+        "Card_Company":"삼성카드",
+        "Card_Type":"신용카드",
+        "Rank_Category":"top100"
+    },
+    {
+        "Rank":77,
+        "Card_Name":"디지로카 Paris",
+        "Card_Company":"롯데카드",
+        "Card_Type":"신용카드",
+        "Rank_Category":"top100"
+    },
+    {
+        "Rank":78,
+        "Card_Name":"원더카드 2.0 FREE+",
+        "Card_Company":"하나카드",
+        "Card_Type":"신용카드",
+        "Rank_Category":"top100"
+    },
+    {
+        "Rank":79,
+        "Card_Name":"IBK포인트3.8(신용)",
+        "Card_Company":"IBK기업은행",
+        "Card_Type":"신용카드",
+        "Rank_Category":"top100"
+    },
+    {
+        "Rank":80,
+        "Card_Name":"BC 바로 ZONE 카드",
+        "Card_Company":"BC 바로카드",
+        "Card_Type":"신용카드",
+        "Rank_Category":"top100"
+    },
+    {
+        "Rank":81,
+        "Card_Name":"zgm.the pay카드",
+        "Card_Company":"NH농협카드",
+        "Card_Type":"신용카드",
+        "Rank_Category":"top100"
+    },
+    {
+        "Rank":82,
+        "Card_Name":"BeV V카드(스카이패스형)",
+        "Card_Company":"KB국민카드",
+        "Card_Type":"신용카드",
+        "Rank_Category":"top100"
+    },
+    {
+        "Rank":83,
+        "Card_Name":"신한카드 RPM+ Platinum#",
+        "Card_Company":"신한카드",
+        "Card_Type":"신용카드",
+        "Rank_Category":"top100"
+    },
+    {
+        "Rank":84,
+        "Card_Name":"신한카드 Edu Plan+",
+        "Card_Company":"신한카드",
+        "Card_Type":"신용카드",
+        "Rank_Category":"top100"
+    },
+    {
+        "Rank":85,
+        "Card_Name":"디지로카 Link",
+        "Card_Company":"롯데카드",
+        "Card_Type":"신용카드",
+        "Rank_Category":"top100"
+    },
+    {
+        "Rank":86,
+        "Card_Name":"삼성 iD PLUG-IN 카드",
+        "Card_Company":"삼성카드",
+        "Card_Type":"신용카드",
+        "Rank_Category":"top100"
+    },
+    {
+        "Rank":87,
+        "Card_Name":"알리익스프레스 신한카드",
+        "Card_Company":"신한카드",
+        "Card_Type":"신용카드",
+        "Rank_Category":"top100"
+    },
+    {
+        "Rank":88,
+        "Card_Name":"KB NEED Edu카드",
+        "Card_Company":"KB국민카드",
+        "Card_Type":"신용카드",
+        "Rank_Category":"top100"
+    },
+    {
+        "Rank":89,
+        "Card_Name":"LOCA LIKIT Eat",
+        "Card_Company":"롯데카드",
+        "Card_Type":"신용카드",
+        "Rank_Category":"top100"
+    },
+    {
+        "Rank":90,
+        "Card_Name":"네이버 현대카드 Edition2",
+        "Card_Company":"현대카드",
+        "Card_Type":"신용카드",
+        "Rank_Category":"top100"
+    },
+    {
+        "Rank":91,
+        "Card_Name":"BC 바로 On&Off 카드",
+        "Card_Company":"BC 바로카드",
+        "Card_Type":"신용카드",
+        "Rank_Category":"top100"
+    },
+    {
+        "Rank":92,
+        "Card_Name":"JADE Prime",
+        "Card_Company":"하나카드",
+        "Card_Type":"신용카드",
+        "Rank_Category":"top100"
+    },
+    {
+        "Rank":93,
+        "Card_Name":"신한카드 국민행복",
+        "Card_Company":"신한카드",
+        "Card_Type":"신용카드",
+        "Rank_Category":"top100"
+    },
+    {
+        "Rank":94,
+        "Card_Name":"신한카드 The BEST-F",
+        "Card_Company":"신한카드",
+        "Card_Type":"신용카드",
+        "Rank_Category":"top100"
+    },
+    {
+        "Rank":95,
+        "Card_Name":"BLISS.5 카드(마일리지)",
+        "Card_Company":"IBK기업은행",
+        "Card_Type":"신용카드",
+        "Rank_Category":"top100"
+    },
+    {
+        "Rank":96,
+        "Card_Name":"메리어트 본보이™ 더 클래식 신한카드",
+        "Card_Company":"신한카드",
+        "Card_Type":"신용카드",
+        "Rank_Category":"top100"
+    },
+    {
+        "Rank":97,
+        "Card_Name":"현대카드Z family Edition2",
+        "Card_Company":"현대카드",
+        "Card_Type":"신용카드",
+        "Rank_Category":"top100"
+    },
+    {
+        "Rank":98,
+        "Card_Name":"K-패스 신한카드",
+        "Card_Company":"신한카드",
+        "Card_Type":"신용카드",
+        "Rank_Category":"top100"
+    },
+    {
+        "Rank":99,
+        "Card_Name":"zgm 할인카드",
+        "Card_Company":"NH농협카드",
+        "Card_Type":"신용카드",
+        "Rank_Category":"top100"
+    },
+    {
+        "Rank":100,
+        "Card_Name":"국민행복 삼성카드 V2",
+        "Card_Company":"삼성카드",
+        "Card_Type":"신용카드",
+        "Rank_Category":"top100"
+    },
+    {
+        "Rank":1,
+        "Card_Name":"010 체크카드",
+        "Card_Company":"우리BC카드",
+        "Card_Type":"체크카드",
+        "Rank_Category":"top50"
+    },
+    {
+        "Rank":2,
+        "Card_Name":"신한카드 체크팡(Check PANG)",
+        "Card_Company":"신한카드",
+        "Card_Type":"체크카드",
+        "Rank_Category":"top50"
+    },
+    {
+        "Rank":3,
+        "Card_Name":"하나 트래블로그 체크카드",
+        "Card_Company":"하나카드",
+        "Card_Type":"체크카드",
+        "Rank_Category":"top50"
+    },
+    {
+        "Rank":4,
+        "Card_Name":"노리2 체크카드(KB Pay)",
+        "Card_Company":"KB국민카드",
+        "Card_Type":"체크카드",
+        "Rank_Category":"top50"
+    },
+    {
+        "Rank":5,
+        "Card_Name":"네이버페이 머니 하나 체크카드",
+        "Card_Company":"하나카드",
+        "Card_Type":"체크카드",
+        "Rank_Category":"top50"
+    },
+    {
+        "Rank":6,
+        "Card_Name":"신한카드 Pick E 체크(선불형)",
+        "Card_Company":"신한카드",
+        "Card_Type":"체크카드",
+        "Rank_Category":"top50"
+    },
+    {
+        "Rank":7,
+        "Card_Name":"카카오뱅크 프렌즈 체크카드",
+        "Card_Company":"카카오뱅크",
+        "Card_Type":"체크카드",
+        "Rank_Category":"top50"
+    },
+    {
+        "Rank":8,
+        "Card_Name":"NH20 해봄 체크카드",
+        "Card_Company":"NH농협카드",
+        "Card_Type":"체크카드",
+        "Rank_Category":"top50"
+    },
+    {
+        "Rank":9,
+        "Card_Name":"토스뱅크 외화통장 체크카드",
+        "Card_Company":"토스뱅크",
+        "Card_Type":"체크카드",
+        "Rank_Category":"top50"
+    },
+    {
+        "Rank":10,
+        "Card_Name":"신한카드 Deep Dream 체크",
+        "Card_Company":"신한카드",
+        "Card_Type":"체크카드",
+        "Rank_Category":"top50"
+    },
+    {
+        "Rank":11,
+        "Card_Name":"PAYCO 포인트 카드",
+        "Card_Company":"NHN PAYCO",
+        "Card_Type":"체크카드",
+        "Rank_Category":"top50"
+    },
+    {
+        "Rank":12,
+        "Card_Name":"우리 010페이 체크카드",
+        "Card_Company":"우리카드",
+        "Card_Type":"체크카드",
+        "Rank_Category":"top50"
+    },
+    {
+        "Rank":13,
+        "Card_Name":"KB국민 노리체크카드",
+        "Card_Company":"KB국민카드",
+        "Card_Type":"체크카드",
+        "Rank_Category":"top50"
+    },
+    {
+        "Rank":14,
+        "Card_Name":"신한카드 Pick I 체크(선불형)",
+        "Card_Company":"신한카드",
+        "Card_Type":"체크카드",
+        "Rank_Category":"top50"
+    },
+    {
+        "Rank":15,
+        "Card_Name":"라이언 치즈 체크카드",
+        "Card_Company":"NH농협카드",
+        "Card_Type":"체크카드",
+        "Rank_Category":"top50"
+    },
+    {
+        "Rank":16,
+        "Card_Name":"어피치 스윗 체크카드",
+        "Card_Company":"NH농협카드",
+        "Card_Type":"체크카드",
+        "Rank_Category":"top50"
+    },
+    {
+        "Rank":17,
+        "Card_Name":"신한카드 Way 체크(S-Line)",
+        "Card_Company":"신한카드",
+        "Card_Type":"체크카드",
+        "Rank_Category":"top50"
+    },
+    {
+        "Rank":18,
+        "Card_Name":"하나 트래블로그 프리미엄 체크카드",
+        "Card_Company":"하나카드",
+        "Card_Type":"체크카드",
+        "Rank_Category":"top50"
+    },
+    {
+        "Rank":19,
+        "Card_Name":"우리카드 오하쳌(오늘하루체크)",
+        "Card_Company":"우리카드",
+        "Card_Type":"체크카드",
+        "Rank_Category":"top50"
+    },
+    {
+        "Rank":20,
+        "Card_Name":"K-패스 체크카드",
+        "Card_Company":"신한카드",
+        "Card_Type":"체크카드",
+        "Rank_Category":"top50"
+    },
+    {
+        "Rank":21,
+        "Card_Name":"KB국민 MinT 체크카드",
+        "Card_Company":"KB국민카드",
+        "Card_Type":"체크카드",
+        "Rank_Category":"top50"
+    },
+    {
+        "Rank":22,
+        "Card_Name":"하나 카카오페이 체크카드",
+        "Card_Company":"하나카드",
+        "Card_Type":"체크카드",
+        "Rank_Category":"top50"
+    },
+    {
+        "Rank":23,
+        "Card_Name":"신한카드 On 체크(잔망루피)",
+        "Card_Company":"신한카드",
+        "Card_Type":"체크카드",
+        "Rank_Category":"top50"
+    },
+    {
+        "Rank":24,
+        "Card_Name":"우리 카드의정석 EVERY CHECK",
+        "Card_Company":"우리카드",
+        "Card_Type":"체크카드",
+        "Rank_Category":"top50"
+    },
+    {
+        "Rank":25,
+        "Card_Name":"NH농협 별다줄 체크카드",
+        "Card_Company":"NH농협카드",
+        "Card_Type":"체크카드",
+        "Rank_Category":"top50"
+    },
+    {
+        "Rank":26,
+        "Card_Name":"신한카드 Global Air 체크",
+        "Card_Company":"신한카드",
+        "Card_Type":"체크카드",
+        "Rank_Category":"top50"
+    },
+    {
+        "Rank":27,
+        "Card_Name":"KB국민 나사(Nasa) 체크카드",
+        "Card_Company":"KB국민카드",
+        "Card_Type":"체크카드",
+        "Rank_Category":"top50"
+    },
+    {
+        "Rank":28,
+        "Card_Name":"우리카드 #오하쳌(오늘하루체크) 에디션2",
+        "Card_Company":"우리카드",
+        "Card_Type":"체크카드",
+        "Rank_Category":"top50"
+    },
+    {
+        "Rank":29,
+        "Card_Name":"하나 트래블로그 체크카드(대한항공)",
+        "Card_Company":"하나카드",
+        "Card_Type":"체크카드",
+        "Rank_Category":"top50"
+    },
+    {
+        "Rank":30,
+        "Card_Name":"신한카드 처음(ANNIVERSE) 체크",
+        "Card_Company":"신한카드",
+        "Card_Type":"체크카드",
+        "Rank_Category":"top50"
+    },
+    {
+        "Rank":31,
+        "Card_Name":"KB국민 청춘대로 싱글 체크카드",
+        "Card_Company":"KB국민카드",
+        "Card_Type":"체크카드",
+        "Rank_Category":"top50"
+    },
+    {
+        "Rank":32,
+        "Card_Name":"NH농협 라이언 치즈 체크카드(시즌2)",
+        "Card_Company":"NH농협카드",
+        "Card_Type":"체크카드",
+        "Rank_Category":"top50"
+    },
+    {
+        "Rank":33,
+        "Card_Name":"카카오페이 신한 체크카드",
+        "Card_Company":"신한카드",
+        "Card_Type":"체크카드",
+        "Rank_Category":"top50"
+    },
+    {
+        "Rank":34,
+        "Card_Name":"하나 원더체크 FREE",
+        "Card_Company":"하나카드",
+        "Card_Type":"체크카드",
+        "Rank_Category":"top50"
+    },
+    {
+        "Rank":35,
+        "Card_Name":"토스뱅크 체크카드",
+        "Card_Company":"토스뱅크",
+        "Card_Type":"체크카드",
+        "Rank_Category":"top50"
+    },
+    {
+        "Rank":36,
+        "Card_Name":"신한카드 래플 체크(Minions)",
+        "Card_Company":"신한카드",
+        "Card_Type":"체크카드",
+        "Rank_Category":"top50"
+    },
+    {
+        "Rank":37,
+        "Card_Name":"우리 카드의정석 COOKIE CHECK",
+        "Card_Company":"우리카드",
+        "Card_Type":"체크카드",
+        "Rank_Category":"top50"
+    },
+    {
+        "Rank":38,
+        "Card_Name":"KB국민 마이위시 체크카드",
+        "Card_Company":"KB국민카드",
+        "Card_Type":"체크카드",
+        "Rank_Category":"top50"
+    },
+    {
+        "Rank":39,
+        "Card_Name":"NH농협 어피치 스윗 체크카드(시즌2)",
+        "Card_Company":"NH농협카드",
+        "Card_Type":"체크카드",
+        "Rank_Category":"top50"
+    },
+    {
+        "Rank":40,
+        "Card_Name":"신한카드 쏠(SOL) 트래블 체크카드",
+        "Card_Company":"신한카드",
+        "Card_Type":"체크카드",
+        "Rank_Category":"top50"
+    },
+    {
+        "Rank":41,
+        "Card_Name":"하나 애니 플러스 체크카드",
+        "Card_Company":"하나카드",
+        "Card_Type":"체크카드",
+        "Rank_Category":"top50"
+    },
+    {
+        "Rank":42,
+        "Card_Name":"KB국민 위시 트래블 체크카드",
+        "Card_Company":"KB국민카드",
+        "Card_Type":"체크카드",
+        "Rank_Category":"top50"
+    },
+    {
+        "Rank":43,
+        "Card_Name":"우리카드 뉴 카드의정석 UNI",
+        "Card_Company":"우리카드",
+        "Card_Type":"체크카드",
+        "Rank_Category":"top50"
+    },
+    {
+        "Rank":44,
+        "Card_Name":"신한카드 밈(Meme)",
+        "Card_Company":"신한카드",
+        "Card_Type":"체크카드",
+        "Rank_Category":"top50"
+    },
+    {
+        "Rank":45,
+        "Card_Name":"하나 트래블로그 체크카드(진에어)",
+        "Card_Company":"하나카드",
+        "Card_Type":"체크카드",
+        "Rank_Category":"top50"
+    },
+    {
+        "Rank":46,
+        "Card_Name":"KB국민 직장인 보너스 체크카드",
+        "Card_Company":"KB국민카드",
+        "Card_Type":"체크카드",
+        "Rank_Category":"top50"
+    },
+    {
+        "Rank":47,
+        "Card_Name":"NH농협 zgm.휴가중 체크카드",
+        "Card_Company":"NH농협카드",
+        "Card_Type":"체크카드",
+        "Rank_Category":"top50"
+    },
+    {
+        "Rank":48,
+        "Card_Name":"우리 스무살 우리 체크(카드형)",
+        "Card_Company":"우리카드",
+        "Card_Type":"체크카드",
+        "Rank_Category":"top50"
+    },
+    {
+        "Rank":49,
+        "Card_Name":"신한카드 S-Line 체크",
+        "Card_Company":"신한카드",
+        "Card_Type":"체크카드",
+        "Rank_Category":"top50"
+    },
+    {
+        "Rank":50,
+        "Card_Name":"하나 폼 체크카드",
+        "Card_Company":"하나카드",
+        "Card_Type":"체크카드",
+        "Rank_Category":"top50"
+    }
+]

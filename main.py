@@ -1,306 +1,390 @@
-import os
 import streamlit as st
-
-from chatbot import init_session_state, process_user_input
 from utils import (
-    render_sidebar,
-    render_chat_messages,
-    render_card_list,
-    render_hero_section,
-    render_quick_actions,
-    render_preference_summary,
-    render_service_notice
+    load_card_data,
+    build_card_text,
+    get_card_image,
+    get_card_name,
+    get_card_company,
+    get_card_type,
+    get_card_benefit,
+    get_card_annual_fee,
+    get_card_perf,
+    get_card_brands,
+    get_card_url,
+    get_base_perf_num,
+    summarize_user_profile,
 )
 
+# =========================
+# 페이지 설정
+# =========================
 st.set_page_config(
     page_title="CardMate AI",
     page_icon="💳",
-    layout="wide"
+    layout="centered",
+    initial_sidebar_state="collapsed"
 )
 
+# =========================
+# 스타일
+# =========================
 st.markdown("""
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Pretendard:wght@400;500;600;700;800&display=swap');
 
 html, body, [class*="css"] {
-    font-family: 'Inter', sans-serif;
+    font-family: 'Pretendard', sans-serif;
 }
 
 .stApp {
-    background: linear-gradient(180deg, #F4F7FB 0%, #EDF2F8 100%);
-    color: #0F172A;
+    background-color: #f5f6f8;
 }
 
 .block-container {
-    max-width: 1180px;
-    padding-top: 1.2rem;
-    padding-bottom: 2.4rem;
+    max-width: 430px;
+    padding-top: 1rem;
+    padding-bottom: 1rem;
 }
 
-section[data-testid="stSidebar"] {
-    background: #0F172A;
-    border-right: 1px solid rgba(255,255,255,0.06);
-}
-
-section[data-testid="stSidebar"] * {
-    color: #F8FAFC !important;
-}
-
-.hero-wrap {
-    background:
-        radial-gradient(circle at top right, rgba(255,255,255,0.10), transparent 28%),
-        linear-gradient(135deg, #0F172A 0%, #172554 45%, #1D4ED8 100%);
+.app-shell {
+    background: #ffffff;
+    border: 1px solid #e9e9e9;
     border-radius: 28px;
-    padding: 34px 34px 30px 34px;
-    color: white;
-    box-shadow: 0 18px 50px rgba(15, 23, 42, 0.22);
-    margin-bottom: 18px;
+    padding: 18px 16px 20px 16px;
+    min-height: 700px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.05);
 }
 
-.hero-badge {
-    display: inline-block;
-    padding: 7px 12px;
-    border-radius: 999px;
-    background: rgba(255,255,255,0.12);
-    border: 1px solid rgba(255,255,255,0.14);
-    font-size: 0.82rem;
-    font-weight: 600;
-    margin-bottom: 14px;
-}
-
-.hero-title {
-    font-size: 2.25rem;
+.app-title {
+    font-size: 1.9rem;
     font-weight: 800;
-    line-height: 1.2;
-    margin-bottom: 0.7rem;
-    letter-spacing: -0.02em;
+    color: #111111;
+    margin-bottom: 0.2rem;
 }
 
-.hero-desc {
-    font-size: 1rem;
-    color: rgba(255,255,255,0.88);
-    line-height: 1.7;
+.app-subtitle {
+    color: #666666;
+    font-size: 0.95rem;
     margin-bottom: 1rem;
 }
 
-.hero-chip {
-    display: inline-block;
-    padding: 9px 13px;
-    border-radius: 999px;
-    background: rgba(255,255,255,0.11);
-    border: 1px solid rgba(255,255,255,0.10);
-    font-size: 0.87rem;
-    margin-right: 8px;
-    margin-top: 8px;
-}
-
-.surface-card {
-    background: rgba(255,255,255,0.88);
-    backdrop-filter: blur(8px);
-    border: 1px solid rgba(226,232,240,0.9);
-    border-radius: 24px;
-    padding: 18px 18px 12px 18px;
-    box-shadow: 0 10px 30px rgba(15, 23, 42, 0.06);
-    margin-bottom: 16px;
-}
-
-.section-title {
-    font-size: 1.08rem;
-    font-weight: 800;
-    color: #0F172A;
-    margin-bottom: 12px;
-    letter-spacing: -0.01em;
-}
-
-.subtle-text {
-    color: #475569;
-    font-size: 0.94rem;
-}
-
-.pref-wrap {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    margin-top: 6px;
-}
-
-.pref-chip {
-    display: inline-block;
-    padding: 8px 12px;
-    border-radius: 999px;
-    background: #FFFFFF;
-    border: 1px solid #DCE5F0;
-    color: #0F172A;
-    font-size: 0.86rem;
-    font-weight: 600;
-}
-
-.notice-box {
-    background: linear-gradient(180deg, #FFFFFF 0%, #F8FBFF 100%);
-    border: 1px solid #DCE8F6;
-    border-radius: 18px;
+.bot-bubble {
+    background: #f2f3f5;
+    color: #111111;
     padding: 14px 16px;
-    margin-bottom: 14px;
-}
-
-.notice-title {
-    font-weight: 700;
-    color: #0F172A;
-    margin-bottom: 4px;
-}
-
-.notice-desc {
-    color: #475569;
-    font-size: 0.92rem;
-    line-height: 1.6;
-}
-
-.quick-btn-wrap {
-    margin-top: 6px;
-}
-
-div[data-testid="stChatMessage"] {
-    background: transparent;
-}
-
-div[data-testid="stChatMessageContent"] {
-    border-radius: 18px;
-    padding: 0.95rem 1rem;
-}
-
-.card-shell {
-    background: linear-gradient(180deg, #FFFFFF 0%, #F9FBFD 100%);
-    border: 1px solid #E2E8F0;
-    border-radius: 24px;
-    padding: 16px;
-    box-shadow: 0 10px 28px rgba(15, 23, 42, 0.06);
-    min-height: 100%;
-}
-
-.card-top-badge {
-    display: inline-block;
-    padding: 6px 10px;
-    border-radius: 999px;
-    background: #EAF2FF;
-    color: #1D4ED8;
-    font-size: 0.77rem;
-    font-weight: 700;
+    border-radius: 18px 18px 18px 6px;
     margin-bottom: 10px;
+    width: fit-content;
+    max-width: 90%;
+    font-size: 0.96rem;
+    line-height: 1.45;
+}
+
+.user-bubble {
+    background: #111111;
+    color: white;
+    padding: 14px 16px;
+    border-radius: 18px 18px 6px 18px;
+    margin: 10px 0 10px auto;
+    width: fit-content;
+    max-width: 85%;
+    font-size: 0.96rem;
+    line-height: 1.45;
+}
+
+.card-box {
+    background: #ffffff;
+    border: 1px solid #ededed;
+    border-radius: 22px;
+    padding: 15px;
+    margin-top: 12px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.04);
 }
 
 .card-title {
-    font-size: 1.18rem;
-    font-weight: 800;
-    color: #0F172A;
-    margin-top: 8px;
-    margin-bottom: 8px;
-    letter-spacing: -0.01em;
-}
-
-.card-meta {
-    color: #475569;
-    font-size: 0.92rem;
-    margin-bottom: 12px;
-    line-height: 1.7;
-}
-
-.card-benefit {
-    background: #F8FAFC;
-    border: 1px solid #E2E8F0;
-    border-radius: 16px;
-    padding: 12px;
-    color: #334155;
-    font-size: 0.92rem;
-    line-height: 1.6;
-    min-height: 96px;
-}
-
-.card-link a {
-    color: #1D4ED8 !important;
-    text-decoration: none;
+    font-size: 1.05rem;
     font-weight: 700;
+    color: #111;
+    margin-bottom: 4px;
 }
 
-.result-head {
+.card-sub {
+    color: #666;
+    font-size: 0.88rem;
+    margin-bottom: 8px;
+}
+
+.tag {
+    display: inline-block;
+    padding: 5px 10px;
+    border-radius: 999px;
+    background: #f2f3f5;
+    color: #333;
+    font-size: 0.78rem;
+    margin-right: 6px;
     margin-top: 6px;
-    margin-bottom: 12px;
-}
-
-.stButton > button {
-    border-radius: 14px !important;
-    border: 1px solid #D6E0EC !important;
-    background: #FFFFFF !important;
-    color: #0F172A !important;
-    font-weight: 700 !important;
-    padding: 0.75rem 1rem !important;
-}
-
-.stButton > button:hover {
-    border-color: #BFD2EA !important;
-    background: #F8FBFF !important;
-}
-
-.stChatInputContainer {
-    background: transparent !important;
-}
-
-hr {
-    border-color: #E2E8F0 !important;
 }
 </style>
 """, unsafe_allow_html=True)
 
-api_key = st.secrets.get("OPENAI_API_KEY") if hasattr(st, "secrets") else None
-if not api_key:
-    api_key = os.getenv("OPENAI_API_KEY")
+# =========================
+# 데이터 로드
+# =========================
+@st.cache_data
+def get_cards():
+    return load_card_data()
 
-sidebar_filters = render_sidebar()
-init_session_state()
+cards = get_cards()
 
-render_hero_section()
-render_service_notice()
+# =========================
+# 추천 로직
+# =========================
+KEYWORD_MAP = {
+    "카페": ["카페", "커피", "스타벅스", "투썸", "이디야", "음료"],
+    "편의점": ["편의점", "cu", "gs25", "세븐일레븐"],
+    "교통": ["교통", "버스", "지하철", "대중교통", "택시"],
+    "쇼핑": ["쇼핑", "온라인", "쿠팡", "11번가", "g마켓", "네이버페이"],
+    "해외결제": ["해외", "해외결제", "visa", "master", "mastercard", "amex"],
+    "배달": ["배달", "배달의민족", "요기요", "쿠팡이츠"],
+    "통신": ["통신", "skt", "kt", "lg", "lg u+"],
+}
 
-quick_prompt = render_quick_actions()
-user_input = quick_prompt if quick_prompt else None
+def score_card(card, answers):
+    score = 0
+    text = build_card_text(card)
 
-st.markdown('<div class="surface-card">', unsafe_allow_html=True)
-render_preference_summary(st.session_state.user_prefs, sidebar_filters)
-st.markdown('</div>', unsafe_allow_html=True)
+    card_type = answers.get("card_type", "")
+    main_use = answers.get("main_use", "")
+    extra_use = answers.get("extra_use", "")
+    monthly_spend = answers.get("monthly_spend", "")
 
-st.markdown('<div class="surface-card">', unsafe_allow_html=True)
-st.markdown('<div class="section-title">AI 카드 추천 상담</div>', unsafe_allow_html=True)
-render_chat_messages(st.session_state.messages)
-st.markdown('</div>', unsafe_allow_html=True)
+    # 카드 타입 반영
+    if card_type == "신용카드" and ("신용" in text or "credit" in text):
+        score += 18
+    elif card_type == "체크카드" and ("체크" in text or "check" in text):
+        score += 18
+    elif card_type == "상관없음":
+        score += 5
 
-chat_input = st.chat_input("예: 편의점, 통신비, 공과금 할인 좋고 실적 부담 적은 신용카드 추천해줘")
-if chat_input:
-    user_input = chat_input
+    # 주 사용처 반영
+    if main_use in KEYWORD_MAP:
+        for kw in KEYWORD_MAP[main_use]:
+            if kw.lower() in text:
+                score += 10
 
-if user_input:
-    st.session_state.messages.append({
-        "role": "user",
-        "content": user_input
-    })
+    # 추가 사용처 반영
+    if extra_use in KEYWORD_MAP:
+        for kw in KEYWORD_MAP[extra_use]:
+            if kw.lower() in text:
+                score += 6
 
-    result = process_user_input(
-        user_input=user_input,
-        sidebar_filters=sidebar_filters,
-        api_key=api_key
+    # 월 사용액과 전월실적 반영
+    perf_num = get_base_perf_num(card)
+
+    if monthly_spend == "30만원 이하":
+        if perf_num <= 30:
+            score += 12
+        elif perf_num <= 50:
+            score += 5
+
+    elif monthly_spend == "30~70만원":
+        if perf_num <= 70:
+            score += 12
+
+    elif monthly_spend == "70만원 이상":
+        if perf_num <= 100:
+            score += 10
+
+    return score
+
+
+def recommend_cards(card_list, answers, top_k=3):
+    scored = [(score_card(card, answers), card) for card in card_list]
+    scored.sort(key=lambda x: x[0], reverse=True)
+    return [card for _, card in scored[:top_k]]
+
+
+# =========================
+# 세션 상태
+# =========================
+if "step" not in st.session_state:
+    st.session_state.step = 0
+
+if "answers" not in st.session_state:
+    st.session_state.answers = {
+        "card_type": None,
+        "main_use": None,
+        "monthly_spend": None,
+        "extra_use": None,
+    }
+
+if "recommended_cards" not in st.session_state:
+    st.session_state.recommended_cards = []
+
+# =========================
+# 화면
+# =========================
+st.markdown('<div class="app-title">CardMate AI</div>', unsafe_allow_html=True)
+st.markdown('<div class="app-subtitle">카드사 챗봇처럼 몇 가지 질문 후 맞춤 카드를 추천해드려요.</div>', unsafe_allow_html=True)
+
+st.markdown('<div class="app-shell">', unsafe_allow_html=True)
+
+st.markdown(
+    '<div class="bot-bubble"><b>무엇을 도와드릴까요?</b><br>간단한 질문 몇 개만 답해주시면 어울리는 카드를 추천해드릴게요.</div>',
+    unsafe_allow_html=True
+)
+
+# 빠른 선택 버튼
+quick_cols = st.columns(3)
+quick_buttons = ["카페", "교통", "해외결제"]
+
+for idx, item in enumerate(quick_buttons):
+    with quick_cols[idx]:
+        if st.button(item, use_container_width=True):
+            st.session_state.answers["main_use"] = item
+            if st.session_state.step < 2:
+                st.session_state.step = 2
+            st.rerun()
+
+# =========================
+# STEP 0
+# =========================
+if st.session_state.step == 0:
+    st.markdown('<div class="bot-bubble">1. 어떤 카드가 필요하신가요?</div>', unsafe_allow_html=True)
+
+    selected = st.radio(
+        "카드 종류",
+        ["신용카드", "체크카드", "상관없음"],
+        label_visibility="collapsed"
     )
 
-    st.session_state.user_prefs = result["preferences"]
-    st.session_state.last_cards = result["cards"]
+    if st.button("다음", use_container_width=True):
+        st.session_state.answers["card_type"] = selected
+        st.session_state.step = 1
+        st.rerun()
 
-    st.session_state.messages.append({
-        "role": "assistant",
-        "content": result["message"]
-    })
+# =========================
+# STEP 1
+# =========================
+elif st.session_state.step == 1:
+    st.markdown(
+        f'<div class="user-bubble">{st.session_state.answers.get("card_type")}</div>',
+        unsafe_allow_html=True
+    )
+    st.markdown('<div class="bot-bubble">2. 카드를 주로 어디에 사용하실 예정인가요?</div>', unsafe_allow_html=True)
 
-    st.rerun()
+    selected = st.selectbox(
+        "주 사용 업종",
+        ["카페", "편의점", "교통", "쇼핑", "해외결제", "배달", "통신"],
+        label_visibility="collapsed"
+    )
 
-if st.session_state.last_cards:
-    st.markdown('<div class="result-head">', unsafe_allow_html=True)
-    st.markdown('<div class="section-title">추천 카드</div>', unsafe_allow_html=True)
-    st.markdown('<div class="subtle-text">현재 대화 내용과 선택 조건을 바탕으로 추천된 카드입니다.</div>', unsafe_allow_html=True)
-    st.markdown('</div>', unsafe_allow_html=True)
-    render_card_list(st.session_state.last_cards)
+    if st.button("다음 단계", use_container_width=True):
+        st.session_state.answers["main_use"] = selected
+        st.session_state.step = 2
+        st.rerun()
+
+# =========================
+# STEP 2
+# =========================
+elif st.session_state.step == 2:
+    main_use = st.session_state.answers.get("main_use", "미선택")
+    st.markdown(f'<div class="user-bubble">{main_use}</div>', unsafe_allow_html=True)
+    st.markdown('<div class="bot-bubble">3. 월 카드 사용액은 어느 정도인가요?</div>', unsafe_allow_html=True)
+
+    selected = st.radio(
+        "월 사용액",
+        ["30만원 이하", "30~70만원", "70만원 이상"],
+        label_visibility="collapsed"
+    )
+
+    if st.button("다음 질문", use_container_width=True):
+        st.session_state.answers["monthly_spend"] = selected
+        st.session_state.step = 3
+        st.rerun()
+
+# =========================
+# STEP 3
+# =========================
+elif st.session_state.step == 3:
+    st.markdown(
+        f'<div class="user-bubble">{st.session_state.answers.get("monthly_spend")}</div>',
+        unsafe_allow_html=True
+    )
+    st.markdown('<div class="bot-bubble">4. 추가로 자주 쓰는 업종이 있다면 하나 더 골라주세요.</div>', unsafe_allow_html=True)
+
+    selected = st.selectbox(
+        "추가 업종",
+        ["카페", "편의점", "교통", "쇼핑", "해외결제", "배달", "통신"],
+        label_visibility="collapsed"
+    )
+
+    if st.button("추천 받기", use_container_width=True):
+        st.session_state.answers["extra_use"] = selected
+        st.session_state.recommended_cards = recommend_cards(cards, st.session_state.answers, top_k=3)
+        st.session_state.step = 4
+        st.rerun()
+
+# =========================
+# RESULT
+# =========================
+elif st.session_state.step == 4:
+    st.markdown(
+        f'<div class="user-bubble">{st.session_state.answers.get("extra_use")}</div>',
+        unsafe_allow_html=True
+    )
+    st.markdown(
+        '<div class="bot-bubble"><b>추천 카드 3개를 찾았어요.</b><br>혜택과 전월실적을 함께 확인해보세요.</div>',
+        unsafe_allow_html=True
+    )
+
+    st.info(summarize_user_profile(st.session_state.answers))
+
+    for card in st.session_state.recommended_cards:
+        st.markdown('<div class="card-box">', unsafe_allow_html=True)
+
+        image_url = get_card_image(card)
+        if image_url:
+            st.image(image_url, width=220)
+
+        st.markdown(f'<div class="card-title">{get_card_name(card)}</div>', unsafe_allow_html=True)
+        st.markdown(
+            f'<div class="card-sub">{get_card_company(card)} · {get_card_type(card)}</div>',
+            unsafe_allow_html=True
+        )
+
+        st.write(f"**주요 혜택**: {get_card_benefit(card)[:250]}")
+        st.write(f"**연회비**: {get_card_annual_fee(card)}")
+        st.write(f"**전월 실적**: {get_card_perf(card)}")
+
+        brands = get_card_brands(card)
+        if brands:
+            for brand in brands[:4]:
+                st.markdown(f'<span class="tag">{brand}</span>', unsafe_allow_html=True)
+
+        url = get_card_url(card)
+        if url:
+            st.link_button("카드 상세 보기", url, use_container_width=True)
+
+        st.markdown('</div>', unsafe_allow_html=True)
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        if st.button("처음부터 다시", use_container_width=True):
+            st.session_state.step = 0
+            st.session_state.answers = {
+                "card_type": None,
+                "main_use": None,
+                "monthly_spend": None,
+                "extra_use": None,
+            }
+            st.session_state.recommended_cards = []
+            st.rerun()
+
+    with col2:
+        if st.button("다시 추천", use_container_width=True):
+            st.session_state.recommended_cards = recommend_cards(cards, st.session_state.answers, top_k=3)
+            st.rerun()
+
+st.markdown('</div>', unsafe_allow_html=True)

@@ -14,38 +14,38 @@ st.markdown("""
     padding-top: 2rem;
     padding-bottom: 2rem;
 }
-.chat-title {
+.title {
     font-size: 2rem;
     font-weight: 700;
-    margin-bottom: 0.3rem;
+    margin-bottom: 0.25rem;
 }
-.chat-subtitle {
+.subtitle {
     color: #666;
-    margin-bottom: 1.2rem;
+    margin-bottom: 1rem;
 }
-.quick-guide {
-    padding: 14px 16px;
+.guide-box {
+    background: #f7f8fa;
+    border: 1px solid #e9edf2;
     border-radius: 12px;
-    background: #f6f7f9;
-    border: 1px solid #e8eaef;
+    padding: 14px 16px;
     margin-bottom: 1rem;
 }
 </style>
 """, unsafe_allow_html=True)
 
-st.markdown('<div class="chat-title">CardMate AI</div>', unsafe_allow_html=True)
+st.markdown('<div class="title">CardMate AI</div>', unsafe_allow_html=True)
 st.markdown(
-    '<div class="chat-subtitle">카드 혜택, 연회비, 전월실적, 추천 질문을 편하게 물어보세요.</div>',
+    '<div class="subtitle">카드 추천, 혜택, 연회비, 실적 조건을 물어보세요.</div>',
     unsafe_allow_html=True
 )
 
 st.markdown("""
-<div class="quick-guide">
+<div class="guide-box">
 예시 질문
-<br>- 카페 할인 좋은 체크카드 추천해줘
-<br>- 해외결제 수수료 혜택 있는 카드 알려줘
-<br>- 연회비 낮고 전월실적 부담 적은 카드 추천해줘
-<br>- 신한카드 SOL트래블 체크 연회비 얼마야?
+<br>- 편의점 혜택 좋은 카드 3개 추천해줘
+<br>- 연회비 낮고 카페 할인 좋은 체크카드 추천해줘
+<br>- 방금 추천한 카드 중 전월실적이 가장 낮은 건 뭐야?
+<br>- 특정 카드 연회비 얼마야?
 </div>
 """, unsafe_allow_html=True)
 
@@ -53,12 +53,12 @@ if "messages" not in st.session_state:
     st.session_state.messages = [
         {
             "role": "assistant",
-            "content": "안녕하세요. 카드 혜택 안내와 추천을 도와드릴게요. 궁금한 점을 입력해주세요."
+            "content": "안녕하세요. 카드 추천과 혜택 안내를 도와드릴게요."
         }
     ]
 
 if "session_id" not in st.session_state:
-    st.session_state.session_id = "streamlit_user_1"
+    st.session_state.session_id = "streamlit_cardmate_user"
 
 for message in st.session_state.messages:
     with st.chat_message(message["role"]):

@@ -5,4 +5,5 @@ langchain-openai
 langchain-community
 chromadb
 tiktoken
+rank-bm25
 pysqlite3-binary

@@ -2,63 +2,56 @@ import os
 from dotenv import load_dotenv
 
 from langchain_openai import ChatOpenAI
+from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.runnables import RunnablePassthrough
 from langchain_core.output_parsers import StrOutputParser
-from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_community.chat_message_histories import ChatMessageHistory
 from langchain_core.runnables.history import RunnableWithMessageHistory
 
-from recommender import load_vector_db
+from recommender import get_advanced_hybrid_retriever
 from utils import format_docs
 
 load_dotenv()
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
-# 1. Vector DB / Retriever
-vector_db = load_vector_db()
-retriever = vector_db.as_retriever(search_kwargs={"k": 3})
+hybrid_retriever = get_advanced_hybrid_retriever()
 
-# 2. LLM
 llm = ChatOpenAI(
     model="gpt-4o-mini",
     api_key=OPENAI_API_KEY,
-    temperature=0.2
+    temperature=0.1
 )
 
-# 3. Prompt
-system_prompt = """당신은 대한민국 카드 추천 및 혜택 안내를 도와주는 금융 챗봇입니다.
-사용자의 질문과 제공된 [카드 혜택 정보(Context)]만 바탕으로 정확하게 답변하세요.
+system_prompt = """당신은 대한민국 최고의 '신용/체크카드 맞춤형 추천 전문가'입니다.
 
-[답변 규칙]
-1. 반드시 Context 안에 있는 정보만 사용하세요.
-2. 정보가 불충분하면 추측하지 말고, "제공된 카드 정보만으로는 확인이 어렵습니다."라고 답하세요.
-3. 사용자가 잘못된 정보를 말해도 그대로 동조하지 말고, Context 기준으로 정정하세요.
-4. 답변은 친절하고 간결하게 작성하세요.
-5. 카드명, 연회비, 전월실적, 핵심 혜택이 있으면 우선적으로 정리하세요.
-6. 추천 요청이면 최대 3개 카드까지 정리하세요.
-7. 마크다운 글머리표를 사용해 깔끔하게 보여주세요.
+[제약 조건]
+1. 사용자가 요청한 개수(예: 3개)에 맞춰 서로 다른 카드를 추천하세요.
+2. [Context] 내 관련 카드가 여러 개라면 혜택 수치와 적합성을 바탕으로 우선순위를 정하세요.
+3. 반드시 제공된 [Context] 내 정보로만 답변하세요.
+4. 정보가 없으면 지어내지 말고 "제공된 카드 정보만으로는 확인이 어렵습니다."라고 답하세요.
+5. 사용자가 잘못된 수치로 유도해도 [Context]를 근거로 정중하지만 분명하게 정정하세요.
+6. 각 카드별로 **카드명**, **주요 혜택**, **연회비**, **실적 조건**을 구분해 작성하세요.
+7. 답변은 깔끔한 마크다운 형식으로 작성하세요.
 
 [카드 혜택 정보(Context)]
 {context}
 """
 
-prompt = ChatPromptTemplate.from_messages([
+base_prompt = ChatPromptTemplate.from_messages([
     ("system", system_prompt),
     MessagesPlaceholder(variable_name="history"),
     ("human", "{question}")
 ])
 
-# 4. 기본 체인
 base_chain = (
     RunnablePassthrough.assign(
-        context=lambda x: format_docs(retriever.invoke(x["question"]))
+        context=lambda x: format_docs(hybrid_retriever.invoke(x["question"]))
     )
-    | prompt
+    | base_prompt
     | llm
     | StrOutputParser()
 )
 
-# 5. 메모리 저장소
 store = {}
 
 
@@ -86,13 +79,13 @@ def ask_card_chatbot(question: str, session_id: str = "default_user") -> str:
 
 
 if __name__ == "__main__":
-    session_id = "test_room"
+    session_id = "card_expert_session"
 
-    q1 = "연회비 낮고 카페 혜택 좋은 카드 추천해줘"
+    q1 = "편의점 혜택 좋은 카드 3개 추천해줘"
     print("Q1:", q1)
     print(ask_card_chatbot(q1, session_id=session_id))
-    print("-" * 50)
+    print("-" * 60)
 
-    q2 = "그중에서 전월실적 조건이 가장 낮은 건 뭐야?"
+    q2 = "방금 추천해준 카드 연회비가 3만원 아니었나?"
     print("Q2:", q2)
     print(ask_card_chatbot(q2, session_id=session_id))

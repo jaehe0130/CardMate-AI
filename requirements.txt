@@ -1,6 +1,8 @@
 streamlit
 python-dotenv
-langchain-core
+langchain
 langchain-openai
-langchain-chroma
+langchain-community
 chromadb
+tiktoken
+pysqlite3-binary

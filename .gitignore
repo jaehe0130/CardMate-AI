@@ -1,0 +1,8 @@
+.env
+__pycache__/
+*.pyc
+
+card_semantic_db/
+card_chroma_db/
+card_category_db/
+card_hybrid_parent_db/

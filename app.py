@@ -1,6 +1,6 @@
 import os
 import json
-from dotenv import load_dotenv
+import streamlit as st
 
 from langchain_core.documents import Document
 from langchain_openai import OpenAIEmbeddings, ChatOpenAI
@@ -12,25 +12,21 @@ from langchain_core.output_parsers import StrOutputParser
 from langchain_community.chat_message_histories import ChatMessageHistory
 from langchain_core.runnables.history import RunnableWithMessageHistory
 
-# 1. 환경 설정 및 데이터 로드
-load_dotenv()
-MY_API_KEY = os.getenv('OPENAI_API_KEY')
+MY_API_KEY = st.secrets["OPENAI_API_KEY"]
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.path.join(BASE_DIR, "data")
 
 embeddings = OpenAIEmbeddings(api_key=MY_API_KEY, model="text-embedding-3-small")
 
-# 벡터 DB 로드
 vector_db = Chroma(
     persist_directory=os.path.join(DATA_DIR, "card_semantic_db"),
     embedding_function=embeddings
 )
 
-# BM25용 문서 복구 및 리트리버 설정
 all_data = vector_db.get()
 documents = [
-    Document(page_content=doc, metadata=meta) 
+    Document(page_content=doc, metadata=meta)
     for doc, meta in zip(all_data['documents'], all_data['metadatas'])
 ]
 
@@ -38,50 +34,47 @@ bm25_retriever = BM25Retriever.from_documents(documents)
 bm25_retriever.k = 10
 vector_retriever = vector_db.as_retriever(search_kwargs={"k": 10})
 
-# 인기 카드 데이터 로드 (리랭킹용)
 def load_top_card_dict(filepath):
     try:
         with open(filepath, 'r', encoding='utf-8') as f:
             data = json.load(f)
-        return { (item.get('Card_Company'), item.get('Card_Name'), item.get('Card_Type')): item for item in data }
+        return {
+            (item.get('Card_Company'), item.get('Card_Name'), item.get('Card_Type')): item
+            for item in data
+        }
     except:
         return {}
 
 top_info_dict = load_top_card_dict(os.path.join(DATA_DIR, 'top_card_data.json'))
 
-# 2. 검색 고도화 로직 (하이브리드 + 리랭킹)
 def rerank_by_popularity(docs):
     scored_docs = []
     for i, doc in enumerate(docs):
         meta = doc.metadata
         card_key = (meta.get('card_company'), meta.get('card_name'), meta.get('card_type'))
-        
-        # 기본 점수: 검색 엔진 순위에 따른 점수
+
         base_score = (len(docs) - i) / len(docs)
-        
-        # 인기 가중치 부여
+
         popularity_boost = 0
         top_info = top_info_dict.get(card_key)
         if top_info:
-            popularity_boost = 1.5 
+            popularity_boost = 1.5
             rank_val = top_info.get('Rank', 150)
             popularity_boost += (151 - rank_val) * 0.005
-        
+
         scored_docs.append((doc, base_score + popularity_boost))
-        
+
     scored_docs.sort(key=lambda x: x[1], reverse=True)
     return [d[0] for d in scored_docs[:10]]
 
 def advanced_retriever_with_rerank(query):
-    # 하이브리드 검색
     bm25_retriever.k = 10
     vector_retriever.search_kwargs = {"k": 10}
-    
+
     bm_docs = bm25_retriever.invoke(query)
     vc_docs = vector_retriever.invoke(query)
     combined_docs = bm_docs + vc_docs
-    
-    # 카드 이름 기준 중복 제거
+
     unique_docs = []
     seen_card_names = set()
     for d in combined_docs:
@@ -89,8 +82,7 @@ def advanced_retriever_with_rerank(query):
         if card_name not in seen_card_names:
             unique_docs.append(d)
             seen_card_names.add(card_name)
-            
-    # 리랭킹 적용
+
     return rerank_by_popularity(unique_docs)
 
 def format_docs(docs):
@@ -101,7 +93,6 @@ def format_docs(docs):
         formatted.append(f"### {d.metadata.get('card_name')} ###\n{d.page_content}\n[조건] 연회비: {fee} / 전월실적: {perf}")
     return "\n\n".join(formatted)
 
-# 3. 프롬프트 및 체인 설정
 llm = ChatOpenAI(model_name="gpt-3.5-turbo", api_key=MY_API_KEY, temperature=0.1)
 
 system_prompt = """당신은 대한민국 최고의 '신용/체크카드 맞춤형 추천 전문가'입니다.
@@ -120,17 +111,15 @@ base_prompt = ChatPromptTemplate.from_messages([
     ("human", "{question}")
 ])
 
-# 검색 로직을 체인 안에 통합
 base_chain = (
     RunnablePassthrough.assign(
         context=lambda x: format_docs(advanced_retriever_with_rerank(x["question"]))
     )
-    | base_prompt 
+    | base_prompt
     | llm
     | StrOutputParser()
 )
 
-# 4. 메모리(History) 설정
 store = {}
 def get_session_history(session_id: str):
     if session_id not in store:
@@ -144,13 +133,29 @@ conversational_chain = RunnableWithMessageHistory(
     history_messages_key="history",
 )
 
-# 5. 실행부
-if __name__ == "__main__":
-    config = {"configurable": {"session_id": "card_expert_session"}}
+st.title("💳 CardMate AI")
 
-    print("👤 질문: 요즘 가장 많이 쓰는 체크카드 추천해줘.")
-    res1 = conversational_chain.invoke(
-        {"question": "요즘 가장 많이 쓰는 체크카드 추천해줘."},
-        config=config
-    )
-    print(f"🤖 응답:\n{res1}\n")
+if "session_id" not in st.session_state:
+    st.session_state.session_id = "card_expert_session"
+
+if "messages" not in st.session_state:
+    st.session_state.messages = []
+
+for msg in st.session_state.messages:
+    with st.chat_message(msg["role"]):
+        st.markdown(msg["content"])
+
+question = st.chat_input("질문을 입력하세요")
+
+if question:
+    st.session_state.messages.append({"role": "user", "content": question})
+
+    with st.chat_message("user"):
+        st.markdown(question)
+
+    with st.chat_message("assistant"):
+        config = {"configurable": {"session_id": st.session_state.session_id}}
+        answer = conversational_chain.invoke({"question": question}, config=config)
+        st.markdown(answer)
+
+    st.session_state.messages.append({"role": "assistant", "content": answer})

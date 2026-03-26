@@ -1,6 +1,15 @@
 [theme]
+base = "light"
 primaryColor = "#4F7CFF"
 backgroundColor = "#F7F9FC"
 secondaryBackgroundColor = "#FFFFFF"
 textColor = "#111827"
 font = "sans serif"
+
+[server]
+headless = true
+port = 8501
+enableCORS = false
+
+[browser]
+gatherUsageStats = false

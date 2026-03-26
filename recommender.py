@@ -197,3 +197,23 @@ def ask_card_bot(question: str, session_id: str = "card_user") -> str:
     conversational_chain = build_chain()
     config = {"configurable": {"session_id": session_id}}
     return conversational_chain.invoke({"question": question}, config=config)
+    
+def get_recommendation_cards(question: str):
+    """
+    UI에 카드형으로 보여주기 위한 추천 카드 데이터 반환
+    LLM 응답과 별개로 retriever 결과를 그대로 활용
+    """
+    docs = advanced_retriever_with_rerank(question)
+
+    cards = []
+    for d in docs[:3]:
+        card = {
+            "card_name": d.metadata.get("card_name", "이름 없음"),
+            "annual_fee": d.metadata.get("annual_fee", "정보없음"),
+            "performance": d.metadata.get("performance", "정보없음"),
+            "image_url": d.metadata.get("image_url") or d.metadata.get("Image_URL", ""),
+            "benefit_summary": (d.page_content[:180] + "...") if len(d.page_content) > 180 else d.page_content
+        }
+        cards.append(card)
+
+    return cards

@@ -98,7 +98,11 @@ Assistant:
 
 base_prompt = ChatPromptTemplate.from_messages([
     ("system", system_prompt),
-    ("placeholder", "{history}"),
+  <<<<<<< codex/update-file-structure-for-cardmate-ai
+      ("placeholder", "{history}"),
+  =======
+      MessagesPlaceholder(variable_name="history"),
+  >>>>>>> main
     ("human", "{question}")
 ])
 

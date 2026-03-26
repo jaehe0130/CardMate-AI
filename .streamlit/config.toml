@@ -1,6 +1,13 @@
 [theme]
 base = "light"
 primaryColor = "#4F7CFF"
+  <<<<<<< codex/update-file-structure-for-cardmate-ai
+  =======
+  backgroundColor = "#F7F9FC"
+  secondaryBackgroundColor = "#FFFFFF"
+  textColor = "#111827"
+  font = "sans serif"
+  >>>>>>> main
 
 [server]
 headless = true

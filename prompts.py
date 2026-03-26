@@ -97,7 +97,7 @@ Assistant:
 """
 
 base_prompt = ChatPromptTemplate.from_messages([
-    ("system", SYSTEM_PROMPT),
+    ("system", system_prompt),
     MessagesPlaceholder(variable_name="history"),
     ("human", "{question}")
 ])

@@ -7,3 +7,4 @@ gdown
 python-dotenv
 pandas
 rank_bm25
+openai

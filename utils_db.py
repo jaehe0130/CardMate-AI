@@ -4,8 +4,8 @@ import zipfile
 import streamlit as st
 import gdown
 
-DB_DIR = "./card_semantic_db_v2"
-ZIP_PATH = "./card_semantic_db_v2.zip"
+DB_DIR = "./card_semantic_db_v3"
+ZIP_PATH = "./card_semantic_db_v3.zip"
 
 def ensure_vector_db():
     if os.path.exists(DB_DIR) and os.path.isdir(DB_DIR) and len(os.listdir(DB_DIR)) > 0:
@@ -35,8 +35,8 @@ def ensure_vector_db():
 
         if not os.path.exists(DB_DIR):
             raise FileNotFoundError(
-                "압축 해제 후 card_semantic_db_v2 폴더를 찾지 못했습니다. "
-                "zip 내부 최상위 폴더명이 card_semantic_db_v2인지 확인하세요."
+                "압축 해제 후 card_semantic_db_v3 폴더를 찾지 못했습니다. "
+                "zip 내부 최상위 폴더명이 card_semantic_db_v3인지 확인하세요."
             )
 
         os.remove(ZIP_PATH)

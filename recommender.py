@@ -1,92 +1,87 @@
-from pathlib import Path
-import shutil
-from typing import List
+import os
+from dotenv import load_dotenv
 
+import streamlit as st
 from langchain_core.documents import Document
+from langchain_openai import OpenAIEmbeddings, ChatOpenAI
 from langchain_community.vectorstores import Chroma
 from langchain_community.retrievers import BM25Retriever
-from langchain_openai import OpenAIEmbeddings
+from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
+from langchain_core.runnables import RunnablePassthrough
+from langchain_core.output_parsers import StrOutputParser
+from langchain_community.chat_message_histories import ChatMessageHistory
+from langchain_core.runnables.history import RunnableWithMessageHistory
 
-from utils import load_card_data, cards_to_semantic_documents, load_top_card_dict
+from prompts import SYSTEM_PROMPT
+from utils_db import ensure_vector_db
 
-PERSIST_DIR = "card_semantic_db"
+load_dotenv()
 
+store = {}
 
-def get_embeddings(openai_api_key: str) -> OpenAIEmbeddings:
-    if not openai_api_key:
-        raise ValueError("OpenAI API 키가 없습니다.")
-    return OpenAIEmbeddings(
-        api_key=openai_api_key,
+def get_session_history(session_id: str):
+    if session_id not in store:
+        store[session_id] = ChatMessageHistory()
+    return store[session_id]
+
+def get_api_key():
+    if "OPENAI_API_KEY" in st.secrets:
+        return st.secrets["OPENAI_API_KEY"]
+    return os.getenv("OPENAI_API_KEY")
+
+@st.cache_resource(show_spinner=False)
+def load_resources():
+    ensure_vector_db()
+
+    api_key = get_api_key()
+
+    llm = ChatOpenAI(
+        model_name="gpt-3.5-turbo",
+        api_key=api_key,
+        temperature=0
+    )
+
+    embeddings = OpenAIEmbeddings(
+        api_key=api_key,
         model="text-embedding-3-small"
     )
 
-
-def build_semantic_vector_db(openai_api_key: str, reset: bool = False) -> Chroma:
-    if reset and Path(PERSIST_DIR).exists():
-        shutil.rmtree(PERSIST_DIR)
-
-    cards = load_card_data()
-    semantic_docs = cards_to_semantic_documents(cards)
-    embeddings = get_embeddings(openai_api_key)
-
-    vector_db = Chroma.from_documents(
-        documents=semantic_docs,
-        embedding=embeddings,
-        persist_directory=PERSIST_DIR
-    )
-    return vector_db
-
-
-def load_semantic_vector_db(openai_api_key: str) -> Chroma:
-    embeddings = get_embeddings(openai_api_key)
-
-    if not Path(PERSIST_DIR).exists():
-        return build_semantic_vector_db(openai_api_key=openai_api_key, reset=False)
-
-    return Chroma(
-        persist_directory=PERSIST_DIR,
+    vector_db = Chroma(
+        persist_directory="./card_semantic_db_v2",
         embedding_function=embeddings
     )
 
-
-def recover_documents_from_vector_db(vector_db: Chroma) -> List[Document]:
     all_data = vector_db.get()
+    documents = [
+        Document(page_content=doc, metadata=meta)
+        for doc, meta in zip(all_data["documents"], all_data["metadatas"])
+    ]
 
-    docs = all_data.get("documents", [])
-    metas = all_data.get("metadatas", [])
+    bm25_retriever = BM25Retriever.from_documents(documents)
+    vector_retriever = vector_db.as_retriever()
 
-    if not docs or not metas:
-        return []
+    all_cards_from_db = {}
+    for doc in documents:
+        name = doc.metadata.get("card_name")
+        rank = doc.metadata.get("rank", 999)
+        card_type = doc.metadata.get("card_type", "")
+        if name and name not in all_cards_from_db:
+            all_cards_from_db[name] = {
+                "Card_Name": name,
+                "Rank": rank,
+                "Card_Type": card_type
+            }
 
-    documents = []
-    for doc, meta in zip(docs, metas):
-        if doc is None:
-            continue
-        documents.append(Document(page_content=doc, metadata=meta or {}))
+    return llm, vector_db, documents, bm25_retriever, vector_retriever, all_cards_from_db
 
-    return documents
-
-
-def rerank_by_popularity(docs: List[Document]) -> List[Document]:
-    top_info_dict = load_top_card_dict()
-
-    if not top_info_dict:
-        return docs[:10]
-
+def rerank_by_popularity(docs):
     scored_docs = []
+
     for i, doc in enumerate(docs):
-        meta = doc.metadata
-        card_key = (
-            str(meta.get("card_company", "")).lower(),
-            str(meta.get("card_name", "")).lower(),
-            str(meta.get("card_type", "")).lower(),
-        )
-
         base_score = (len(docs) - i) / max(len(docs), 1)
+        rank_val = doc.metadata.get("rank", 999)
 
-        top_info = top_info_dict.get(card_key)
-        if top_info:
-            rank_val = top_info.get("Rank", 150)
+        if isinstance(rank_val, int) and rank_val <= 150:
             popularity_boost = 5.0 + (151 - rank_val) * 0.1
         else:
             popularity_boost = 0.0
@@ -96,58 +91,109 @@ def rerank_by_popularity(docs: List[Document]) -> List[Document]:
     scored_docs.sort(key=lambda x: x[1], reverse=True)
     return [d[0] for d in scored_docs[:10]]
 
+def advanced_retriever_with_rerank(query: str):
+    _, _, documents, bm25_retriever, vector_retriever, all_cards_from_db = load_resources()
 
-class AdvancedHybridRetriever:
-    def __init__(self, vector_db: Chroma):
-        self.vector_db = vector_db
-        self.documents = recover_documents_from_vector_db(vector_db)
+    is_teenager = any(
+        keyword in query for keyword in ["10대", "청소년", "학생", "중학생", "고등학생", "미성년자", "18살", "18세"]
+    )
 
-        self.bm25_retriever = BM25Retriever.from_documents(self.documents) if self.documents else None
-        self.vector_retriever = vector_db.as_retriever(search_kwargs={"k": 10})
+    if is_teenager:
+        vector_retriever.search_kwargs = {"k": 10, "filter": {"card_type": "체크카드"}}
+    else:
+        vector_retriever.search_kwargs = {"k": 10}
 
-    def invoke(self, query: str) -> List[Document]:
-        vector_docs = self.vector_retriever.invoke(query)
+    bm25_retriever.k = 10
 
-        bm_docs = []
-        if self.bm25_retriever is not None:
-            self.bm25_retriever.k = 10
-            bm_docs = self.bm25_retriever.invoke(query)
+    bm_docs = bm25_retriever.invoke(query)
+    vc_docs = vector_retriever.invoke(query)
+    combined_docs = bm_docs + vc_docs
 
-        combined_docs = bm_docs + vector_docs
+    if any(keyword in query for keyword in ["인기", "많이 쓰는", "순위", "1위", "대세"]):
+        if is_teenager:
+            candidate_cards = [c for c in all_cards_from_db.values() if c["Card_Type"] == "체크카드"]
+        else:
+            candidate_cards = list(all_cards_from_db.values())
 
-        unique_docs = []
-        seen_keys = set()
+        top_5_cards = sorted(candidate_cards, key=lambda x: x["Rank"])[:5]
+        top_5_names = [c["Card_Name"] for c in top_5_cards]
 
-        for d in combined_docs:
-            key = (
-                d.metadata.get("card_company", ""),
-                d.metadata.get("card_name", ""),
-                d.metadata.get("card_type", "")
-            )
-            if key not in seen_keys:
-                unique_docs.append(d)
-                seen_keys.add(key)
+        for doc in documents:
+            if doc.metadata.get("card_name") in top_5_names:
+                combined_docs.append(doc)
 
-        top_info_dict = load_top_card_dict()
-        if top_info_dict and any(keyword in query for keyword in ["인기", "많이 쓰는", "순위", "1위", "추천"]):
-            top_5_cards = sorted(top_info_dict.values(), key=lambda x: x.get("Rank", 999))[:5]
-            for card_info in top_5_cards:
-                target_name = str(card_info.get("Card_Name", "")).lower()
-                for doc in self.documents:
-                    if str(doc.metadata.get("card_name", "")).lower() == target_name:
-                        key = (
-                            doc.metadata.get("card_company", ""),
-                            doc.metadata.get("card_name", ""),
-                            doc.metadata.get("card_type", "")
-                        )
-                        if key not in seen_keys:
-                            unique_docs.append(doc)
-                            seen_keys.add(key)
-                        break
+    card_grouped_docs = {}
 
-        return rerank_by_popularity(unique_docs)
+    for d in combined_docs:
+        card_name = d.metadata.get("card_name")
+        card_type = str(d.metadata.get("card_type", ""))
 
+        if not card_name or str(card_name).strip() == "" or str(card_name).lower() == "nan":
+            continue
 
-def get_advanced_hybrid_retriever(openai_api_key: str) -> AdvancedHybridRetriever:
-    vector_db = load_semantic_vector_db(openai_api_key)
-    return AdvancedHybridRetriever(vector_db)
+        if is_teenager and "신용" in card_type:
+            continue
+
+        if card_name not in card_grouped_docs:
+            card_grouped_docs[card_name] = {
+                "metadata": d.metadata,
+                "benefits": [d.page_content]
+            }
+        else:
+            if d.page_content not in card_grouped_docs[card_name]["benefits"]:
+                card_grouped_docs[card_name]["benefits"].append(d.page_content)
+
+    unique_docs = []
+    for _, data in card_grouped_docs.items():
+        combined_text = "\n".join(data["benefits"])
+        unique_docs.append(Document(page_content=combined_text, metadata=data["metadata"]))
+
+    return rerank_by_popularity(unique_docs)[:5]
+
+def format_docs(docs):
+    formatted = []
+    for idx, d in enumerate(docs):
+        fee = d.metadata.get("annual_fee", "정보없음")
+        perf = d.metadata.get("performance", "정보없음")
+
+        doc_text = (
+            f"[[🔥 추천 {idx+1}순위 문서 🔥]]\n"
+            f"### {d.metadata.get('card_name')} ###\n"
+            f"{d.page_content}\n"
+            f"[조건] 연회비: {fee} / 전월실적: {perf}"
+        )
+        formatted.append(doc_text)
+
+    return "\n\n".join(formatted)
+
+@st.cache_resource(show_spinner=False)
+def build_chain():
+    llm, _, _, _, _, _ = load_resources()
+
+    base_prompt = ChatPromptTemplate.from_messages([
+        ("system", SYSTEM_PROMPT),
+        MessagesPlaceholder(variable_name="history"),
+        ("human", "{question}")
+    ])
+
+    base_chain = (
+        RunnablePassthrough.assign(
+            context=lambda x: format_docs(advanced_retriever_with_rerank(x["question"]))
+        )
+        | base_prompt
+        | llm
+        | StrOutputParser()
+    )
+
+    conversational_chain = RunnableWithMessageHistory(
+        base_chain,
+        get_session_history,
+        input_messages_key="question",
+        history_messages_key="history",
+    )
+    return conversational_chain
+
+def ask_card_bot(question: str, session_id: str = "card_user") -> str:
+    conversational_chain = build_chain()
+    config = {"configurable": {"session_id": session_id}}
+    return conversational_chain.invoke({"question": question}, config=config)

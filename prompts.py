@@ -10,7 +10,7 @@ import os
 from dotenv import load_dotenv
 
 from langchain_openai import ChatOpenAI
-from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
+from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import RunnablePassthrough
 from langchain_core.output_parsers import StrOutputParser
 from langchain_community.chat_message_histories import ChatMessageHistory
@@ -98,7 +98,11 @@ Assistant:
 
 base_prompt = ChatPromptTemplate.from_messages([
     ("system", system_prompt),
-    MessagesPlaceholder(variable_name="history"),
+  <<<<<<< codex/update-file-structure-for-cardmate-ai
+      ("placeholder", "{history}"),
+  =======
+      MessagesPlaceholder(variable_name="history"),
+  >>>>>>> main
     ("human", "{question}")
 ])
 

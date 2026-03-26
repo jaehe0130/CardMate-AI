@@ -2,5 +2,5 @@
 .env
 __pycache__/
 *.pyc
-card_semantic_db_v2/
-card_semantic_db_v2.zip
+card_semantic_db_v3/
+card_semantic_db_v3.zip

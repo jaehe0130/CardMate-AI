@@ -3,6 +3,6 @@ langchain
 langchain-openai
 langchain-community
 chromadb
-rank-bm25
-tiktoken
-pysqlite3-binary
+gdown
+python-dotenv
+pandas

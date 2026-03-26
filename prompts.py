@@ -1,3 +1,52 @@
+# prompts.py
+# =========================================================
+# [이 파일의 역할]
+# - 시스템 프롬프트 관리
+# - LangChain 체인 생성
+# - [중요] Moderation 검사 후 체인 실행
+# =========================================================
+
+import os
+from dotenv import load_dotenv
+
+from langchain_openai import ChatOpenAI
+from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
+from langchain_core.runnables import RunnablePassthrough
+from langchain_core.output_parsers import StrOutputParser
+from langchain_community.chat_message_histories import ChatMessageHistory
+from langchain_core.runnables.history import RunnableWithMessageHistory
+
+from recommender import advanced_retriever_with_rerank, format_docs
+from moderation_utils import check_moderation
+
+load_dotenv()
+
+
+def get_api_key() -> str:
+    try:
+        import streamlit as st
+        if "OPENAI_API_KEY" in st.secrets:
+            return st.secrets["OPENAI_API_KEY"]
+    except Exception:
+        pass
+
+    return os.getenv("OPENAI_API_KEY", "")
+
+
+# =========================================================
+# [LLM]
+# =========================================================
+llm = ChatOpenAI(
+    model_name="gpt-3.5-turbo",
+    api_key=get_api_key(),
+    temperature=0.1
+)
+
+
+# =========================================================
+# [시스템 프롬프트]
+# - 이미지URL도 반드시 포함하도록 지시
+# =========================================================
 system_prompt = """당신은 대한민국 최고의 '신용/체크카드 맞춤형 추천 전문가(Financial Advisor)'입니다.
 반드시 제공된 [카드 혜택 정보(Context)]만을 바탕으로 사용자의 질문에 가장 적합한 카드를 추천하세요.
 
@@ -44,4 +93,80 @@ Assistant:
 ---
 [카드 혜택 정보(Context)]
 {context}
+
 """
+
+base_prompt = ChatPromptTemplate.from_messages([
+    ("system", SYSTEM_PROMPT),
+    MessagesPlaceholder(variable_name="history"),
+    ("human", "{question}")
+])
+
+store = {}
+
+
+def get_session_history(session_id: str):
+    if session_id not in store:
+        store[session_id] = ChatMessageHistory()
+    return store[session_id]
+
+
+def build_chain():
+    """
+    실제 카드 추천 체인 생성
+    """
+    base_chain = (
+        RunnablePassthrough.assign(
+            context=lambda x: format_docs(
+                advanced_retriever_with_rerank(x["question"])
+            )
+        )
+        | base_prompt
+        | llm
+        | StrOutputParser()
+    )
+
+    conversational_chain = RunnableWithMessageHistory(
+        base_chain,
+        get_session_history,
+        input_messages_key="question",
+        history_messages_key="history",
+    )
+    return conversational_chain
+
+
+# =========================================================
+# [MODERATION 적용된 실행 함수]
+# ---------------------------------------------------------
+# 여기서만 moderation을 적용합니다.
+# 즉, "질문 들어옴 -> moderation 검사 -> 통과 시 체인 실행"
+# ---------------------------------------------------------
+# [중요]
+# - moderation 적용된 모델 파일에서 들어간 함수 부분은
+#   check_moderation() 호출 부분뿐입니다.
+# - 나머지 추천/검색/이미지URL/챗봇 기능은 그대로 유지됩니다.
+# =========================================================
+def ask_card_bot(question: str, session_id: str):
+    moderation_result = check_moderation(question)
+
+    # 유해성 문장으로 판단되면 답변 생성 중단
+    if moderation_result["flagged"]:
+        return {
+            "ok": False,
+            "answer": (
+                "입력하신 내용은 안전 정책상 바로 답변드리기 어려워요. "
+                "카드 추천과 관련된 질문으로 다시 입력해 주세요."
+            ),
+            "moderation": moderation_result,
+        }
+
+    # moderation 통과 시 정상적으로 카드 추천 체인 실행
+    chain = build_chain()
+    config = {"configurable": {"session_id": session_id}}
+    answer = chain.invoke({"question": question}, config=config)
+
+    return {
+        "ok": True,
+        "answer": answer,
+        "moderation": moderation_result,
+    }

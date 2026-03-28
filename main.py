@@ -588,9 +588,13 @@ except Exception as e:
 # =========================================================
 # 프롬프트 / 체인 연결
 # =========================================================
+
+
+
+
 base_prompt = ChatPromptTemplate.from_messages(
     [
-        ("system", get_system_prompt()),
+        ("system", system_prompt),
         MessagesPlaceholder(variable_name="history"),
         ("human", "{question}"),
     ]

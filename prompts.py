@@ -14,7 +14,9 @@ MY_API_KEY = os.getenv('OPENAI_API_KEY')
 
 llm = ChatOpenAI(model_name="gpt-3.5-turbo", api_key=MY_API_KEY, temperature=0.1)
 
-system_prompt = """당신은 대한민국 최고의 '신용/체크카드 맞춤형 추천 전문가(Financial Advisor)'입니다.
+
+def get_system_prompt():
+    return """당신은 대한민국 최고의 '신용/체크카드 맞춤형 추천 전문가(Financial Advisor)'입니다.
 반드시 제공된 [카드 혜택 정보(Context)]만을 바탕으로 사용자의 질문에 가장 적합한 카드를 추천하세요.
 
 [제약 조건 (Strict Rules)]

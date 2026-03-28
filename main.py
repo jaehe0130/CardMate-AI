@@ -7,7 +7,6 @@ from dotenv import load_dotenv
 from openai import OpenAI
 from utils_db import load_rag_resources
 from recommender import build_context, check_moderation, advanced_retriever_with_rerank
-from prompts import get_system_prompt
 
 from langchain_openai import ChatOpenAI
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder

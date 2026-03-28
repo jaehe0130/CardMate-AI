@@ -1,21 +1,22 @@
-# recommender.py
+import os
+import shutil
+import zipfile
+from pathlib import Path
+
+import gdown
+import streamlit as st
+from dotenv import load_dotenv
 from openai import OpenAI
 
 from langchain_core.documents import Document
 from langchain_openai import OpenAIEmbeddings, ChatOpenAI
 from langchain_community.vectorstores import Chroma
 from langchain_community.retrievers import BM25Retriever
-
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.runnables import RunnablePassthrough
 from langchain_core.output_parsers import StrOutputParser
-
 from langchain_community.chat_message_histories import ChatMessageHistory
 from langchain_core.runnables.history import RunnableWithMessageHistory
-
-import os
-import streamlit as st
-from dotenv import load_dotenv
 
 load_dotenv()
 
@@ -162,7 +163,22 @@ def load_rag_resources(openai_api_key: str, gdrive_db_file_id: str):
         "bm25_retriever": bm25_retriever,
         "vector_retriever": vector_retriever,
         "all_cards_from_db": all_cards_from_db,
+    
     }
+    
+    GDRIVE_DB_FILE_ID = os.getenv("GDRIVE_DB_FILE_ID") or st.secrets.get("GDRIVE_DB_FILE_ID")
+
+    if not GDRIVE_DB_FILE_ID:
+        raise ValueError("GDRIVE_DB_FILE_ID가 설정되지 않았습니다.")
+    
+    rag_resources = load_rag_resources(MY_API_KEY, GDRIVE_DB_FILE_ID)
+    
+    db_path = rag_resources["db_path"]
+    vector_db = rag_resources["vector_db"]
+    documents = rag_resources["documents"]
+    bm25_retriever = rag_resources["bm25_retriever"]
+    vector_retriever = rag_resources["vector_retriever"]
+    all_cards_from_db = rag_resources["all_cards_from_db"]
 
 # ──────────────────────────────────────────────
 # Moderation 함수

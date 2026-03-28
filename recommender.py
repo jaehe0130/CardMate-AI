@@ -59,14 +59,16 @@ def check_moderation(text: str) -> dict:
 # =========================
 def reciprocal_rank_fusion(results_list: list, k: int = 60) -> list:
     """
-    BM25 + Vector 검색 결과를 RRF 방식으로 합산
+    RAG-Fusion: BM25 + 벡터 검색 결과를 RRF 알고리즘으로 합산
+    두 검색 모두에서 상위권인 카드일수록 높은 점수
+    k=60은 RRF 표준 상수값 (RRF 논문 참조)
     """
     scores = {}
     doc_map = {}
 
     for results in results_list:
         for rank, doc in enumerate(results):
-            key = f"{doc.metadata.get('card_name', '')}__{doc.page_content[:50]}"
+            key = doc.page_content[:50]
             if key not in scores:
                 scores[key] = 0
                 doc_map[key] = doc
@@ -83,20 +85,20 @@ def rerank_by_popularity(docs):
     scored_docs = []
     for i, doc in enumerate(docs):
         base_score = (len(docs) - i) / len(docs)
-
+        
         # 메타데이터에서 바로 순위(Rank)를 꺼내옴 (딕셔너리 대조 필요 없음!)
-        rank_val = doc.metadata.get("rank", 999)
-
+        rank_val = doc.metadata.get('rank', 999)
+        
         # 150위 안쪽인 카드만 가중치 팍팍 부여
         if rank_val <= 150:
             popularity_boost = 5.0 + (151 - rank_val) * 0.1
         else:
             popularity_boost = 0.0
-
+            
         scored_docs.append((doc, base_score + popularity_boost))
-
+        
     scored_docs.sort(key=lambda x: x[1], reverse=True)
-    return [d[0] for d in scored_docs[:10]]
+    return [d[0] for d in scored_docs[:10]]10]]
 
 
 
@@ -185,7 +187,38 @@ def build_context(
         all_cards_from_db=all_cards_from_db,
     )
     return format_docs(docs)
-
+ # ====================================================================
+    # 🌟 5. [핵심 수술 부위] 혜택 병합(Merge) 로직 (기존 seen_card_names 대체!)
+    # ====================================================================
+    card_grouped_docs = {}
+    
+    for d in combined_docs:
+        card_name = d.metadata.get('card_name')
+        card_type = str(d.metadata.get('card_type', ''))
+        
+        # 결측치 방어 및 10대 신용카드 사후 컷팅
+        if not card_name or str(card_name).strip() == "" or str(card_name).lower() == "nan":
+            continue
+        if is_teenager and "신용" in card_type:
+            continue
+            
+        # 1. 딕셔너리에 카드가 처음 등장하면? -> 새 방을 만들고 첫 번째 혜택을 넣습니다.
+        if card_name not in card_grouped_docs:
+            card_grouped_docs[card_name] = {"metadata": d.metadata, "benefits": [d.page_content]}
+        
+        # 2. 이미 방이 있는 카드라면? -> 기존 혜택들 밑에 새로운 혜택(d.page_content)을 추가(Append)합니다!
+        else:
+            # 단, 내용이 완전히 똑같은 조각(BM25와 Vector가 중복으로 가져온 녀석)만 거릅니다.
+            if d.page_content not in card_grouped_docs[card_name]["benefits"]:
+                card_grouped_docs[card_name]["benefits"].append(d.page_content)
+                
+    # 3. 차곡차곡 모은 혜택들을 엔터(\n)로 이어붙여서 하나의 완성된 Document로 만듭니다.
+    unique_docs = []
+    for c_name, data in card_grouped_docs.items():
+        # GPT-3.5 모델 용량 초과를 막기 위해 카드 한 장당 최대 2000자로 제한
+        combined_text = "\n".join(data["benefits"])[:2000]
+        unique_docs.append(Document(page_content=combined_text, metadata=data["metadata"]))
+    # ====================================================================
 
 # =========================
 # 7. chat 실행 helper

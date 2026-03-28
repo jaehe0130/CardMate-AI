@@ -180,7 +180,18 @@ def format_docs(docs):
         formatted.append(doc_text)
         
     return "\n\n".join(formatted)
-    
+
+# ===============================================
+
+def build_context(question, bm25_retriever, vector_retriever, documents, all_cards_from_db):
+    docs = advanced_retriever_with_rerank(
+        query=question,
+        bm25_retriever=bm25_retriever,
+        vector_retriever=vector_retriever,
+        documents=documents,
+        all_cards_from_db=all_cards_from_db,
+    )
+    return format_docs(docs)
 # =========================
 # 7. chat 실행 helper
 # =========================

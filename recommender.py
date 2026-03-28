@@ -3,6 +3,17 @@ from openai import OpenAI
 from langchain_openai import ChatOpenAI
 from langchain_core.documents import Document
 
+import os
+import streamlit as st
+from dotenv import load_dotenv
+
+load_dotenv()
+
+MY_API_KEY = os.getenv("OPENAI_API_KEY") or st.secrets.get("OPENAI_API_KEY")
+
+if not MY_API_KEY:
+    raise ValueError("OPENAI_API_KEY가 설정되지 않았습니다.")
+    
 # utils_db.py
 import os
 import shutil

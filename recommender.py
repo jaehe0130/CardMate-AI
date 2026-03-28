@@ -1,5 +1,6 @@
 # recommender.py
 from openai import OpenAI
+from langchain_openai import ChatOpenAI
 from langchain_core.documents import Document
 
 # utils_db.py

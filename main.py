@@ -1,338 +1,618 @@
 import os
-import shutil
-import zipfile
-from pathlib import Path
-
-import gdown
+import re
+import html
 import streamlit as st
 from dotenv import load_dotenv
-
 from openai import OpenAI
-from langchain_core.documents import Document
-from langchain_openai import OpenAIEmbeddings, ChatOpenAI
-from langchain_community.vectorstores import Chroma
-from langchain_community.retrievers import BM25Retriever
+
+from langchain_openai import ChatOpenAI
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.runnables import RunnablePassthrough
 from langchain_core.output_parsers import StrOutputParser
 from langchain_community.chat_message_histories import ChatMessageHistory
 from langchain_core.runnables.history import RunnableWithMessageHistory
 
+from utils_db import load_rag_resources
+from recommender import build_context, check_moderation
 
-# =========================
-# 0. Streamlit 기본 설정
-# =========================
-st.set_page_config(page_title="CardMate AI", page_icon="💳", layout="wide")
+
+# =========================================================
+# 기본 설정
+# =========================================================
+st.set_page_config(
+    page_title="CardMate AI",
+    page_icon="💳",
+    layout="wide",
+    initial_sidebar_state="expanded",
+)
 
 load_dotenv()
-
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY") or st.secrets.get("OPENAI_API_KEY", None)
-GDRIVE_DB_FILE_ID = os.getenv("GDRIVE_DB_FILE_ID") or st.secrets.get("GDRIVE_DB_FILE_ID", None)
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY") or st.secrets.get("OPENAI_API_KEY")
+GDRIVE_DB_FILE_ID = os.getenv("GDRIVE_DB_FILE_ID") or st.secrets.get("GDRIVE_DB_FILE_ID")
 
 if not OPENAI_API_KEY:
-    st.error("OPENAI_API_KEY가 없습니다.")
+    st.error("OPENAI_API_KEY가 설정되지 않았습니다.")
     st.stop()
 
 if not GDRIVE_DB_FILE_ID:
-    st.error("GDRIVE_DB_FILE_ID가 없습니다.")
+    st.error("GDRIVE_DB_FILE_ID가 설정되지 않았습니다.")
     st.stop()
 
-client = OpenAI(api_key=OPENAI_API_KEY)
 
-
-# =========================
-# 1. 구글드라이브 zip 다운로드/압축해제
-# =========================
-DB_ZIP_PATH = Path("./card_semantic_db_v3.zip")
-DB_EXTRACT_ROOT = Path("./db_cache")
-DB_DIR = DB_EXTRACT_ROOT / "card_semantic_db_v3"
-
-
-def download_and_prepare_db(file_id: str):
+# =========================================================
+# 스타일
+# =========================================================
+st.markdown(
     """
-    구글드라이브에서 zip 다운로드 후 압축 해제.
-    압축 결과로 ./db_cache/card_semantic_db_v3 가 생성되도록 처리.
-    """
-    DB_EXTRACT_ROOT.mkdir(parents=True, exist_ok=True)
+    <style>
+    :root {
+        --bg: #f5f7fb;
+        --panel: #ffffff;
+        --text: #191f28;
+        --muted: #6b7684;
+        --line: #e5e8eb;
+        --primary: #3182f6;
+        --primary-soft: #e8f3ff;
+        --shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
+        --radius-xl: 24px;
+        --radius-lg: 18px;
+        --radius-md: 14px;
+    }
 
-    # 이미 압축 해제된 DB 폴더가 있으면 재사용
-    if DB_DIR.exists() and any(DB_DIR.iterdir()):
-        return str(DB_DIR)
+    .stApp {
+        background: linear-gradient(180deg, #f8fbff 0%, #f4f6fa 100%);
+        color: var(--text);
+    }
 
-    # 기존 zip 파일 삭제 후 새로 다운로드
-    if DB_ZIP_PATH.exists():
-        DB_ZIP_PATH.unlink()
+    .block-container {
+        max-width: 1280px;
+        padding-top: 1.4rem;
+        padding-bottom: 2rem;
+    }
 
-    url = f"https://drive.google.com/uc?id={file_id}"
-    gdown.download(url, str(DB_ZIP_PATH), quiet=False)
+    section[data-testid="stSidebar"] {
+        background: rgba(255,255,255,0.82);
+        backdrop-filter: blur(14px);
+        border-right: 1px solid rgba(229,232,235,0.9);
+    }
 
-    if not DB_ZIP_PATH.exists():
-        raise FileNotFoundError("DB zip 다운로드 실패")
+    .hero-wrap {
+        background: linear-gradient(135deg, #1b64da 0%, #3182f6 48%, #73b0ff 100%);
+        border-radius: 30px;
+        padding: 28px 28px 24px 28px;
+        box-shadow: 0 16px 40px rgba(49,130,246,0.22);
+        color: white;
+        margin-bottom: 20px;
+        position: relative;
+        overflow: hidden;
+    }
 
-    # 기존 압축 해제 폴더 정리
-    if DB_EXTRACT_ROOT.exists():
-        shutil.rmtree(DB_EXTRACT_ROOT)
-    DB_EXTRACT_ROOT.mkdir(parents=True, exist_ok=True)
+    .hero-wrap::after {
+        content: "";
+        position: absolute;
+        width: 280px;
+        height: 280px;
+        right: -70px;
+        top: -90px;
+        background: rgba(255,255,255,0.16);
+        border-radius: 50%;
+    }
 
-    # 압축 해제
-    with zipfile.ZipFile(DB_ZIP_PATH, "r") as zip_ref:
-        zip_ref.extractall(DB_EXTRACT_ROOT)
+    .hero-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        background: rgba(255,255,255,0.16);
+        border: 1px solid rgba(255,255,255,0.18);
+        padding: 7px 12px;
+        border-radius: 999px;
+        font-size: 13px;
+        margin-bottom: 14px;
+    }
 
-    # zip 안에 card_semantic_db_v3 폴더가 있는 경우
-    if DB_DIR.exists() and any(DB_DIR.iterdir()):
-        return str(DB_DIR)
+    .hero-title {
+        font-size: 34px;
+        font-weight: 800;
+        line-height: 1.2;
+        margin-bottom: 8px;
+        letter-spacing: -0.03em;
+    }
 
-    # zip 안에 바로 chroma 파일들이 풀린 경우 대응
-    extracted_items = list(DB_EXTRACT_ROOT.iterdir())
-    if extracted_items:
-        # card_semantic_db_v3 폴더가 없고 파일들이 바로 풀렸으면 폴더로 이동
-        if any(item.is_file() for item in extracted_items):
-            DB_DIR.mkdir(parents=True, exist_ok=True)
-            for item in extracted_items:
-                if item.name != "card_semantic_db_v3":
-                    shutil.move(str(item), str(DB_DIR / item.name))
-            return str(DB_DIR)
+    .hero-sub {
+        font-size: 15px;
+        color: rgba(255,255,255,0.92);
+        line-height: 1.65;
+    }
 
-        # 하위 폴더 하나만 있고 그게 실제 DB 폴더인 경우
-        if len(extracted_items) == 1 and extracted_items[0].is_dir():
-            return str(extracted_items[0])
+    .info-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 14px;
+        margin: 18px 0 18px 0;
+    }
 
-    raise FileNotFoundError("압축 해제 후 Chroma DB 폴더를 찾지 못했습니다.")
+    .info-card {
+        background: rgba(255,255,255,0.88);
+        border: 1px solid rgba(229,232,235,0.95);
+        border-radius: 20px;
+        padding: 18px 18px 16px 18px;
+        box-shadow: var(--shadow);
+    }
+
+    .info-label {
+        font-size: 12px;
+        color: var(--muted);
+        margin-bottom: 6px;
+        font-weight: 600;
+    }
+
+    .info-value {
+        font-size: 22px;
+        font-weight: 800;
+        color: var(--text);
+        letter-spacing: -0.02em;
+    }
+
+    .info-desc {
+        margin-top: 6px;
+        color: var(--muted);
+        font-size: 13px;
+        line-height: 1.5;
+    }
+
+    .section-title {
+        font-size: 22px;
+        font-weight: 800;
+        color: var(--text);
+        margin: 10px 0 12px 2px;
+        letter-spacing: -0.02em;
+    }
+
+    .glass-panel {
+        background: rgba(255,255,255,0.9);
+        border: 1px solid rgba(229,232,235,0.95);
+        border-radius: 24px;
+        box-shadow: var(--shadow);
+        padding: 18px;
+    }
+
+    .chat-panel {
+        background: rgba(255,255,255,0.88);
+        border: 1px solid rgba(229,232,235,0.95);
+        border-radius: 24px;
+        box-shadow: var(--shadow);
+        padding: 8px 8px 14px 8px;
+        min-height: 520px;
+    }
+
+    .side-card {
+        background: rgba(255,255,255,0.92);
+        border: 1px solid rgba(229,232,235,0.95);
+        border-radius: 20px;
+        padding: 16px;
+        box-shadow: var(--shadow);
+        margin-bottom: 12px;
+    }
+
+    .side-title {
+        font-size: 15px;
+        font-weight: 800;
+        color: var(--text);
+        margin-bottom: 8px;
+    }
+
+    .side-desc {
+        font-size: 13px;
+        color: var(--muted);
+        line-height: 1.6;
+    }
+
+    .quick-chip {
+        display: inline-block;
+        background: var(--primary-soft);
+        color: var(--primary);
+        padding: 8px 12px;
+        border-radius: 999px;
+        font-size: 12px;
+        font-weight: 700;
+        margin: 4px 6px 0 0;
+        border: 1px solid #d9e8ff;
+    }
+
+    .recommend-scroll {
+        display: flex;
+        gap: 16px;
+        overflow-x: auto;
+        padding: 6px 2px 12px 2px;
+        scroll-snap-type: x mandatory;
+        margin-bottom: 12px;
+    }
+
+    .recommend-scroll::-webkit-scrollbar {
+        height: 10px;
+    }
+
+    .recommend-scroll::-webkit-scrollbar-thumb {
+        background: #d4dbe3;
+        border-radius: 999px;
+    }
+
+    .card-item {
+        min-width: 320px;
+        max-width: 320px;
+        background: linear-gradient(180deg, #ffffff 0%, #fbfcff 100%);
+        border: 1px solid #e8edf4;
+        border-radius: 24px;
+        box-shadow: 0 10px 24px rgba(15, 23, 42, 0.06);
+        padding: 18px;
+        scroll-snap-align: start;
+        position: relative;
+    }
+
+    .card-rank {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        background: #eef5ff;
+        color: #1b64da;
+        border-radius: 999px;
+        padding: 6px 10px;
+        font-size: 12px;
+        font-weight: 800;
+        margin-bottom: 12px;
+    }
+
+    .card-image-wrap {
+        width: 100%;
+        height: 190px;
+        border-radius: 20px;
+        background: linear-gradient(135deg, #edf3ff 0%, #f7faff 100%);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
+        border: 1px solid #edf2f7;
+        margin-bottom: 14px;
+    }
+
+    .card-image-wrap img {
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+        background: transparent;
+    }
+
+    .card-image-fallback {
+        width: 92px;
+        height: 92px;
+        border-radius: 22px;
+        background: linear-gradient(135deg, #1b64da 0%, #7db8ff 100%);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        font-size: 36px;
+        font-weight: 800;
+        box-shadow: 0 10px 24px rgba(49,130,246,0.25);
+    }
+
+    .card-name {
+        font-size: 20px;
+        font-weight: 800;
+        color: var(--text);
+        line-height: 1.35;
+        margin-bottom: 10px;
+        letter-spacing: -0.02em;
+    }
+
+    .badge-row {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        margin-bottom: 12px;
+    }
+
+    .badge {
+        font-size: 11px;
+        font-weight: 700;
+        padding: 7px 10px;
+        border-radius: 999px;
+        border: 1px solid #e6ebf0;
+        color: #4e5968;
+        background: #fafbfd;
+    }
+
+    .card-benefit {
+        font-size: 14px;
+        line-height: 1.7;
+        color: #333d4b;
+        background: #f8fafc;
+        border: 1px solid #edf2f7;
+        border-radius: 16px;
+        padding: 12px 14px;
+        min-height: 102px;
+        margin-bottom: 12px;
+    }
+
+    .card-reason {
+        font-size: 13px;
+        line-height: 1.7;
+        color: var(--muted);
+        background: #fcfdff;
+        border: 1px dashed #e5e8eb;
+        border-radius: 16px;
+        padding: 12px 14px;
+    }
+
+    .empty-card {
+        background: rgba(255,255,255,0.92);
+        border: 1px dashed #d7dfe7;
+        border-radius: 20px;
+        padding: 22px;
+        color: var(--muted);
+        text-align: center;
+    }
+
+    div[data-testid="stChatMessage"] {
+        border-radius: 18px;
+        padding: 4px 6px;
+        margin-bottom: 8px;
+    }
+
+    div[data-testid="stChatMessage"] [data-testid="stMarkdownContainer"] p {
+        line-height: 1.75;
+        font-size: 15px;
+    }
+
+    .stChatInput > div {
+        border-radius: 20px !important;
+        border: 1px solid #dbe2ea !important;
+        box-shadow: 0 8px 24px rgba(15,23,42,0.05) !important;
+        background: rgba(255,255,255,0.95) !important;
+    }
+
+    .stButton > button {
+        width: 100%;
+        border-radius: 14px;
+        height: 42px;
+        border: 1px solid #d9e8ff;
+        background: #eff6ff;
+        color: #1b64da;
+        font-weight: 700;
+    }
+
+    .stButton > button:hover {
+        border-color: #bfd7ff;
+        background: #e6f0ff;
+        color: #155ac8;
+    }
+
+    @media (max-width: 1100px) {
+        .info-grid {
+            grid-template-columns: 1fr;
+        }
+        .card-item {
+            min-width: 280px;
+            max-width: 280px;
+        }
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
 
 
-# =========================
-# 2. 리소스 로드
-# =========================
-@st.cache_resource(show_spinner=True)
-def load_rag_resources():
-    db_path = download_and_prepare_db(GDRIVE_DB_FILE_ID)
+# =========================================================
+# 유틸
+# =========================================================
+def safe_text(value, default="정보 없음"):
+    if value is None:
+        return default
+    text = str(value).strip()
+    if not text or text.lower() == "nan":
+        return default
+    return text
 
-    embeddings = OpenAIEmbeddings(
-        api_key=OPENAI_API_KEY,
-        model="text-embedding-3-small"
-    )
 
-    vector_db = Chroma(
-        persist_directory=db_path,
-        embedding_function=embeddings
-    )
+def extract_card_name(block: str) -> str:
+    match = re.search(r"###\s*(.*?)\s*###", block)
+    return safe_text(match.group(1), "추천 카드") if match else "추천 카드"
 
-    all_data = vector_db.get()
-    documents_raw = all_data.get("documents", [])
-    metadatas_raw = all_data.get("metadatas", [])
 
-    if not documents_raw or not metadatas_raw:
-        raise ValueError("벡터 DB가 비어 있습니다. zip 내용 확인 필요")
+def extract_rank(block: str, fallback_rank: int) -> int:
+    match = re.search(r"추천\s*(\d+)순위", block)
+    return int(match.group(1)) if match else fallback_rank
 
-    documents = [
-        Document(page_content=doc, metadata=meta)
-        for doc, meta in zip(documents_raw, metadatas_raw)
-    ]
 
-    if not documents:
-        raise ValueError("문서 복구 결과가 비어 있습니다.")
+def extract_fee_perf(block: str):
+    fee = "정보 없음"
+    perf = "정보 없음"
+    match = re.search(r"\[조건\]\s*연회비:\s*(.*?)\s*/\s*전월실적:\s*(.*)", block, re.DOTALL)
+    if match:
+        fee = safe_text(match.group(1))
+        perf = safe_text(match.group(2))
+    return fee, perf
 
-    bm25_retriever = BM25Retriever.from_documents(documents)
-    bm25_retriever.k = 10
 
-    vector_retriever = vector_db.as_retriever(search_kwargs={"k": 10})
+def extract_benefit(block: str) -> str:
+    cleaned = re.sub(r"\[\[.*?\]\]", "", block, flags=re.DOTALL)
+    cleaned = re.sub(r"###\s*.*?\s*###", "", cleaned, flags=re.DOTALL)
+    cleaned = re.sub(r"\[조건\].*", "", cleaned, flags=re.DOTALL)
+    cleaned = cleaned.strip()
+    if not cleaned:
+        return "질문과 가장 관련된 혜택 정보를 기반으로 추천되었습니다."
+    return cleaned[:240] + ("..." if len(cleaned) > 240 else "")
 
-    all_cards_from_db = {}
-    for doc in documents:
-        name = doc.metadata.get("card_name")
-        rank = doc.metadata.get("rank", 999)
-        card_type = doc.metadata.get("card_type", "")
 
-        try:
-            rank = int(rank)
-        except:
-            rank = 999
+def split_context_blocks(context: str):
+    if not context or "검색된 카드 정보가 없습니다" in context:
+        return []
+    blocks = re.split(r"\n(?=\[\[🔥 추천 \d+순위 문서 🔥\]\])", context.strip())
+    return [b.strip() for b in blocks if b.strip()]
 
-        if name and name not in all_cards_from_db:
-            all_cards_from_db[name] = {
-                "Card_Name": name,
-                "Rank": rank,
-                "Card_Type": card_type
+
+def parse_context_cards(context: str, all_cards_from_db: dict):
+    cards = []
+    blocks = split_context_blocks(context)
+    for idx, block in enumerate(blocks, start=1):
+        card_name = extract_card_name(block)
+        rank = extract_rank(block, idx)
+        fee, perf = extract_fee_perf(block)
+        benefit = extract_benefit(block)
+        db_meta = all_cards_from_db.get(card_name, {}) if isinstance(all_cards_from_db, dict) else {}
+
+        image_url = (
+            db_meta.get("Image_URL")
+            or db_meta.get("image_url")
+            or db_meta.get("image")
+            or ""
+        )
+        card_type = db_meta.get("Card_Type") or db_meta.get("card_type") or "카드"
+        reason = (
+            "질문에서 요청한 혜택 키워드와 DB 검색 결과를 함께 반영해 추천했어요. "
+            "연회비와 전월실적도 함께 비교해 보세요."
+        )
+
+        cards.append(
+            {
+                "rank": rank,
+                "card_name": card_name,
+                "image_url": image_url,
+                "card_type": safe_text(card_type, "카드"),
+                "fee": fee,
+                "perf": perf,
+                "benefit": benefit,
+                "reason": reason,
             }
+        )
+    return cards
 
-    return db_path, documents, bm25_retriever, vector_retriever, all_cards_from_db
+
+def render_card_carousel(cards):
+    st.markdown('<div class="section-title">추천 카드 미리보기</div>', unsafe_allow_html=True)
+
+    if not cards:
+        st.markdown(
+            '<div class="empty-card">아직 추천 카드가 없어요. 아래 채팅창에 원하는 혜택을 입력해 보세요.</div>',
+            unsafe_allow_html=True,
+        )
+        return
+
+    html_parts = ['<div class="recommend-scroll">']
+    for card in cards:
+        card_name = html.escape(safe_text(card.get("card_name"), "추천 카드"))
+        image_url = safe_text(card.get("image_url"), "")
+        card_type = html.escape(safe_text(card.get("card_type"), "카드"))
+        fee = html.escape(safe_text(card.get("fee"), "정보 없음"))
+        perf = html.escape(safe_text(card.get("perf"), "정보 없음"))
+        benefit = html.escape(safe_text(card.get("benefit"), "추천 혜택 정보"))
+        reason = html.escape(safe_text(card.get("reason"), "질문과 가장 관련된 카드로 추천되었어요."))
+        rank = card.get("rank", 0)
+
+        if image_url and image_url.startswith("http"):
+            image_html = f'<img src="{html.escape(image_url)}" alt="{card_name}">'  # nosec B703
+        else:
+            first_char = html.escape(card_name[:1] if card_name else "💳")
+            image_html = f'<div class="card-image-fallback">{first_char}</div>'
+
+        html_parts.append(
+            f"""
+            <div class="card-item">
+                <div class="card-rank">✨ 추천 {rank}순위</div>
+                <div class="card-image-wrap">{image_html}</div>
+                <div class="card-name">{card_name}</div>
+                <div class="badge-row">
+                    <span class="badge">{card_type}</span>
+                    <span class="badge">연회비 {fee}</span>
+                    <span class="badge">실적 {perf}</span>
+                </div>
+                <div class="card-benefit"><b>핵심 혜택</b><br>{benefit}</div>
+                <div class="card-reason"><b>추천 포인트</b><br>{reason}</div>
+            </div>
+            """
+        )
+    html_parts.append("</div>")
+    st.markdown("".join(html_parts), unsafe_allow_html=True)
+
+
+def build_dashboard_cards(total_cards: int, db_path: str):
+    db_name = db_path.split("/")[-1] if db_path else "semantic db"
+    st.markdown(
+        f"""
+        <div class="info-grid">
+            <div class="info-card">
+                <div class="info-label">추천 엔진</div>
+                <div class="info-value">Hybrid RAG</div>
+                <div class="info-desc">BM25와 Chroma 검색 결과를 함께 사용해 더 정확한 카드 후보를 찾습니다.</div>
+            </div>
+            <div class="info-card">
+                <div class="info-label">로드된 카드 수</div>
+                <div class="info-value">{total_cards:,}</div>
+                <div class="info-desc">압축 해제된 DB에서 불러온 카드 혜택 청크를 기반으로 추천합니다.</div>
+            </div>
+            <div class="info-card">
+                <div class="info-label">DB 상태</div>
+                <div class="info-value">{html.escape(db_name)}</div>
+                <div class="info-desc">구글드라이브 zip에서 내려받은 Chroma DB를 현재 세션에서 재사용합니다.</div>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+# =========================================================
+# 리소스 로드
+# =========================================================
+@st.cache_resource(show_spinner=True)
+def init_services():
+    client = OpenAI(api_key=OPENAI_API_KEY)
+    llm = ChatOpenAI(
+        model_name="gpt-3.5-turbo",
+        api_key=OPENAI_API_KEY,
+        temperature=0.1,
+    )
+    rag_resources = load_rag_resources(
+        openai_api_key=OPENAI_API_KEY,
+        gdrive_db_file_id=GDRIVE_DB_FILE_ID,
+    )
+    return client, llm, rag_resources
 
 
 try:
-    db_path, documents, bm25_retriever, vector_retriever, all_cards_from_db = load_rag_resources()
-    st.success(f"DB 로드 완료: {db_path}")
+    client, llm, rag_resources = init_services()
+    db_path = rag_resources.get("db_path", "")
+    documents = rag_resources["documents"]
+    bm25_retriever = rag_resources["bm25_retriever"]
+    vector_retriever = rag_resources["vector_retriever"]
+    all_cards_from_db = rag_resources["all_cards_from_db"]
 except Exception as e:
-    st.error(f"DB 로드 실패: {e}")
+    st.error(f"초기 리소스 로드 실패: {e}")
     st.stop()
 
 
-# =========================
-# 3. Moderation
-# =========================
-def check_moderation(text: str) -> dict:
-    response = client.moderations.create(input=text)
-    result = response.results[0]
-
-    reason = None
-    if result.flagged:
-        flagged_categories = [
-            category
-            for category, flagged in result.categories.__dict__.items()
-            if flagged
-        ]
-        reason = ", ".join(flagged_categories) if flagged_categories else "unknown"
-
-    return {
-        "flagged": result.flagged,
-        "reason": reason
-    }
-
-
-# =========================
-# 4. 검색 / 리랭크
-# =========================
-def reciprocal_rank_fusion(results_list: list, k: int = 60) -> list:
-    scores = {}
-    doc_map = {}
-
-    for results in results_list:
-        for rank, doc in enumerate(results):
-            key = f"{doc.metadata.get('card_name', '')}__{doc.page_content[:50]}"
-            if key not in scores:
-                scores[key] = 0
-                doc_map[key] = doc
-            scores[key] += 1 / (rank + k)
-
-    sorted_keys = sorted(scores, key=lambda x: scores[x], reverse=True)
-    return [doc_map[key] for key in sorted_keys]
-
-
-def rerank_by_popularity(docs):
-    if not docs:
-        return []
-
-    scored_docs = []
-    for i, doc in enumerate(docs):
-        base_score = (len(docs) - i) / len(docs)
-
-        rank_val = doc.metadata.get("rank", 999)
-        try:
-            rank_val = int(rank_val)
-        except:
-            rank_val = 999
-
-        popularity_boost = 5.0 + (151 - rank_val) * 0.1 if rank_val <= 150 else 0.0
-        scored_docs.append((doc, base_score + popularity_boost))
-
-    scored_docs.sort(key=lambda x: x[1], reverse=True)
-    return [d[0] for d in scored_docs[:10]]
-
-
-def advanced_retriever_with_rerank(query):
-    is_teenager = any(
-        keyword in query
-        for keyword in ["10대", "청소년", "학생", "중학생", "고등학생", "미성년자"]
-    )
-
-    if is_teenager:
-        vector_retriever.search_kwargs = {"k": 10, "filter": {"card_type": "체크카드"}}
-    else:
-        vector_retriever.search_kwargs = {"k": 10}
-
-    bm25_retriever.k = 10
-
-    bm_docs = bm25_retriever.invoke(query)
-    vc_docs = vector_retriever.invoke(query)
-    combined_docs = reciprocal_rank_fusion([bm_docs, vc_docs])
-
-    if any(keyword in query for keyword in ["인기", "많이 쓰는", "순위", "1위", "대세", "추천"]):
-        if is_teenager:
-            candidate_cards = [c for c in all_cards_from_db.values() if c["Card_Type"] == "체크카드"]
-        else:
-            candidate_cards = list(all_cards_from_db.values())
-
-        top_5_cards = sorted(candidate_cards, key=lambda x: x["Rank"])[:5]
-        top_5_names = [c["Card_Name"] for c in top_5_cards]
-
-        def clean(t):
-            return str(t).replace(" ", "").strip()
-
-        clean_top_5 = [clean(n) for n in top_5_names]
-
-        for doc in documents:
-            if clean(doc.metadata.get("card_name", "")) in clean_top_5:
-                combined_docs.append(doc)
-
-    card_grouped_docs = {}
-    for d in combined_docs:
-        card_name = d.metadata.get("card_name")
-        card_type = str(d.metadata.get("card_type", ""))
-
-        if not card_name or str(card_name).strip() == "" or str(card_name).lower() == "nan":
-            continue
-        if is_teenager and "신용" in card_type:
-            continue
-
-        if card_name not in card_grouped_docs:
-            card_grouped_docs[card_name] = {"metadata": d.metadata, "benefits": [d.page_content]}
-        else:
-            if d.page_content not in card_grouped_docs[card_name]["benefits"]:
-                card_grouped_docs[card_name]["benefits"].append(d.page_content)
-
-    unique_docs = []
-    for _, data in card_grouped_docs.items():
-        combined_text = "\n".join(data["benefits"])[:2000]
-        unique_docs.append(Document(page_content=combined_text, metadata=data["metadata"]))
-
-    return rerank_by_popularity(unique_docs)[:3]
-
-
-def format_docs(docs):
-    if not docs:
-        return "검색된 카드 정보가 없습니다."
-
-    formatted = []
-    for idx, d in enumerate(docs):
-        fee = d.metadata.get("annual_fee", "정보없음")
-        perf = d.metadata.get("performance", "정보없음")
-        card_name = d.metadata.get("card_name", "이름없음")
-
-        doc_text = (
-            f"[[🔥 추천 {idx+1}순위 문서 🔥]]\n"
-            f"### {card_name} ###\n"
-            f"{d.page_content}\n"
-            f"[조건] 연회비: {fee} / 전월실적: {perf}"
-        )
-        formatted.append(doc_text)
-
-    return "\n\n".join(formatted)
-
-
-# =========================
-# 5. 체인
-# =========================
-llm = ChatOpenAI(
-    model_name="gpt-3.5-turbo",
-    api_key=OPENAI_API_KEY,
-    temperature=0.1
-)
-
+# =========================================================
+# 프롬프트 / 체인
+# =========================================================
 system_prompt = """
-당신은 대한민국 최고의 신용/체크카드 맞춤형 추천 전문가입니다.
-반드시 제공된 카드 혜택 정보(Context)만을 바탕으로 사용자의 질문에 답하세요.
+당신은 대한민국 최고의 '신용/체크카드 맞춤형 추천 전문가(Financial Advisor)'입니다.
+반드시 제공된 [카드 혜택 정보(Context)]만을 바탕으로 사용자의 질문에 가장 적합한 카드를 추천하세요.
 
-[규칙]
-1. Context 밖 정보는 만들지 마세요.
-2. 질문과 직접 관련된 혜택 수치(%, 원, 한도)를 포함하세요.
-3. 가능한 경우 카드 3개를 추천하세요.
-4. 체크카드 요청 시 체크카드만, 신용카드 요청 시 신용카드만 추천하세요.
+[제약 조건 (Strict Rules)]
+1. 정보의 절대성: Context에 명시되지 않은 혜택, 연회비, 실적 조건은 지어내지 마세요.
+2. 사용자 니즈 정밀 매칭: 사용자의 질문과 직접 관련된 혜택을 우선 추천하세요.
+3. 카드 종류 준수:
+   - 사용자가 체크카드를 원하면 체크카드만 추천하세요.
+   - 사용자가 신용카드를 원하면 신용카드만 추천하세요.
+4. 다중 선택지 제공: 가장 적합한 카드 3개를 추천하세요.
+5. 가독성 있게 마크다운으로 답변하세요.
 
 [출력 형식]
 **[소비 패턴 분석]**
-...
+(사용자의 주요 소비 카테고리와 필요한 혜택 요약)
 
 **[추천 카드]**
-### 💳 카드명
+### 💳 [카드명]
 * **핵심 혜택:** ...
 * **연회비:** ... / **전월실적:** ...
 * **추천 이유:** ...
@@ -342,15 +622,23 @@ system_prompt = """
 {context}
 """
 
-base_prompt = ChatPromptTemplate.from_messages([
-    ("system", system_prompt),
-    MessagesPlaceholder(variable_name="history"),
-    ("human", "{question}")
-])
+base_prompt = ChatPromptTemplate.from_messages(
+    [
+        ("system", system_prompt),
+        MessagesPlaceholder(variable_name="history"),
+        ("human", "{question}"),
+    ]
+)
 
 base_chain = (
     RunnablePassthrough.assign(
-        context=lambda x: format_docs(advanced_retriever_with_rerank(x["question"]))
+        context=lambda x: build_context(
+            question=x["question"],
+            bm25_retriever=bm25_retriever,
+            vector_retriever=vector_retriever,
+            documents=documents,
+            all_cards_from_db=all_cards_from_db,
+        )
     )
     | base_prompt
     | llm
@@ -359,10 +647,12 @@ base_chain = (
 
 store = {}
 
+
 def get_session_history(session_id: str):
     if session_id not in store:
         store[session_id] = ChatMessageHistory()
     return store[session_id]
+
 
 conversational_chain = RunnableWithMessageHistory(
     base_chain,
@@ -371,54 +661,135 @@ conversational_chain = RunnableWithMessageHistory(
     history_messages_key="history",
 )
 
-def chat(question: str, config: dict) -> str:
-    moderation_result = check_moderation(question)
-    if moderation_result["flagged"]:
-        return "부적절한 내용이 포함되어 있어 답변할 수 없습니다."
 
-    docs = advanced_retriever_with_rerank(question)
-    if not docs:
-        return "조건에 맞는 카드 정보를 찾지 못했습니다. 혜택 키워드를 조금 더 구체적으로 입력해 주세요."
-
-    return conversational_chain.invoke({"question": question}, config=config)
-
-
-# =========================
-# 6. UI
-# =========================
-st.title("💳 CardMate AI")
-st.caption("구글드라이브의 card_semantic_db_v3.zip을 내려받아 카드 추천 DB로 사용합니다.")
+# =========================================================
+# 세션 상태
+# =========================================================
+if "session_id" not in st.session_state:
+    st.session_state.session_id = "cardmate_session"
 
 if "messages" not in st.session_state:
     st.session_state.messages = [
         {
             "role": "assistant",
-            "content": "안녕하세요! 원하는 소비 패턴을 말씀해 주세요. 예: 편의점 할인 체크카드 추천해줘"
+            "content": "안녕하세요. 카드 사용 패턴에 맞게 혜택 좋은 카드를 찾아드릴게요. 예를 들어 '배달이랑 외식 할인 좋은 신용카드 추천해줘'처럼 말해보세요.",
         }
     ]
 
-if "session_id" not in st.session_state:
-    st.session_state.session_id = "card_expert_session"
+if "latest_context" not in st.session_state:
+    st.session_state.latest_context = ""
 
-for message in st.session_state.messages:
-    with st.chat_message(message["role"]):
-        st.markdown(message["content"])
+if "latest_cards" not in st.session_state:
+    st.session_state.latest_cards = []
 
-user_prompt = st.chat_input("예: 나 18살 학생인데 편의점/교통 할인 체크카드 추천해줘")
+if "prefill_prompt" not in st.session_state:
+    st.session_state.prefill_prompt = ""
+
+
+# =========================================================
+# 사이드바
+# =========================================================
+with st.sidebar:
+    st.markdown('<div class="side-card"><div class="side-title">💳 CardMate AI</div><div class="side-desc">토스 스타일의 카드 추천 챗봇 UI입니다. 질문을 입력하면 카드 혜택 DB를 기반으로 가장 잘 맞는 카드 3개를 추천합니다.</div></div>', unsafe_allow_html=True)
+
+    st.markdown('<div class="side-card"><div class="side-title">빠른 질문</div><div class="side-desc">아래 버튼을 누르면 추천 문장이 입력창에 바로 들어갑니다.</div></div>', unsafe_allow_html=True)
+
+    quick_prompts = [
+        "나 18살 학생인데 편의점이랑 교통비 할인 많이 되는 체크카드 추천해줘",
+        "배달이랑 외식 혜택 좋은 신용카드 추천해줘",
+        "전월실적 부담 적은 카드 추천해줘",
+        "해외여행 마일리지 적립 좋은 카드 추천해줘",
+        "인기있는 카드 3개 추천해줘",
+    ]
+
+    for prompt in quick_prompts:
+        if st.button(prompt):
+            st.session_state.prefill_prompt = prompt
+
+    st.markdown('<div class="side-card"><div class="side-title">추천 팁</div><div class="side-desc">원하는 혜택, 카드 종류, 생활 패턴을 함께 말하면 더 정확해져요.<br><br><span class="quick-chip">예: 체크카드</span><span class="quick-chip">예: 편의점</span><span class="quick-chip">예: 교통</span><span class="quick-chip">예: 무실적</span></div></div>', unsafe_allow_html=True)
+
+    st.markdown('<div class="side-card"><div class="side-title">현재 연결</div><div class="side-desc">구글드라이브 zip DB를 세션에 로드해 사용 중입니다.</div></div>', unsafe_allow_html=True)
+
+
+# =========================================================
+# 상단 히어로
+# =========================================================
+st.markdown(
+    """
+    <div class="hero-wrap">
+        <div class="hero-chip">✨ AI 카드 추천 · Hybrid RAG · Toss Style</div>
+        <div class="hero-title">내 소비패턴에 딱 맞는 카드,<br>대화로 빠르게 추천받기</div>
+        <div class="hero-sub">카드 혜택 DB를 검색해 할인, 적립, 연회비, 전월실적을 함께 비교해 보여줍니다. 원하는 생활 패턴을 자연스럽게 말해보세요.</div>
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
+
+build_dashboard_cards(total_cards=len(documents), db_path=db_path)
+
+left_col, right_col = st.columns([1.05, 1.35], gap="large")
+
+with left_col:
+    render_card_carousel(st.session_state.latest_cards)
+
+with right_col:
+    st.markdown('<div class="section-title">AI 카드 상담</div>', unsafe_allow_html=True)
+    st.markdown('<div class="chat-panel">', unsafe_allow_html=True)
+    for message in st.session_state.messages:
+        with st.chat_message(message["role"]):
+            st.markdown(message["content"])
+    st.markdown('</div>', unsafe_allow_html=True)
+
+
+# =========================================================
+# 입력 / 실행
+# =========================================================
+def run_assistant(question: str) -> str:
+    moderation_result = check_moderation(client, question)
+    if moderation_result.get("flagged"):
+        return "부적절한 내용이 포함되어 있어 답변할 수 없습니다. 다른 방식으로 질문해 주세요."
+
+    context = build_context(
+        question=question,
+        bm25_retriever=bm25_retriever,
+        vector_retriever=vector_retriever,
+        documents=documents,
+        all_cards_from_db=all_cards_from_db,
+    )
+
+    st.session_state.latest_context = context
+    st.session_state.latest_cards = parse_context_cards(context, all_cards_from_db)
+
+    if not st.session_state.latest_cards:
+        return "조건에 맞는 카드 정보를 찾지 못했어요. 원하는 혜택이나 카드 종류를 조금 더 구체적으로 입력해 주세요."
+
+    return conversational_chain.invoke(
+        {"question": question},
+        config={"configurable": {"session_id": st.session_state.session_id}},
+    )
+
+
+chat_placeholder = st.session_state.prefill_prompt if st.session_state.prefill_prompt else "예: 나 18살 학생인데 교통비랑 편의점 할인 좋은 체크카드 추천해줘"
+user_prompt = st.chat_input(chat_placeholder)
+
+if st.session_state.prefill_prompt and not user_prompt:
+    user_prompt = st.session_state.prefill_prompt
+    st.session_state.prefill_prompt = ""
 
 if user_prompt:
     st.session_state.messages.append({"role": "user", "content": user_prompt})
-    with st.chat_message("user"):
-        st.markdown(user_prompt)
 
-    with st.chat_message("assistant"):
-        with st.spinner("카드 분석 중..."):
-            try:
-                config = {"configurable": {"session_id": st.session_state.session_id}}
-                answer = chat(user_prompt, config)
-                st.markdown(answer)
-            except Exception as e:
-                answer = f"오류가 발생했습니다: {e}"
-                st.error(answer)
+    with right_col:
+        with st.chat_message("user"):
+            st.markdown(user_prompt)
+        with st.chat_message("assistant"):
+            with st.spinner("카드 혜택을 분석하고 있어요..."):
+                try:
+                    answer = run_assistant(user_prompt)
+                    st.markdown(answer)
+                except Exception as e:
+                    answer = f"실행 중 오류가 발생했습니다: {e}"
+                    st.error(answer)
 
     st.session_state.messages.append({"role": "assistant", "content": answer})
+    st.rerun()

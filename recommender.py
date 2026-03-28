@@ -111,20 +111,24 @@ def load_rag_resources(openai_api_key: str, gdrive_db_file_id: str):
 
     all_cards_from_db = {}
     for doc in documents:
-        name = doc.metadata.get("card_name")
-        rank = doc.metadata.get("rank", 999)
-        card_type = doc.metadata.get("card_type", "")
-
+        meta = doc.metadata or {}
+    
+        name = meta.get("card_name")
+        rank = meta.get("rank", 999)
+        card_type = meta.get("card_type", "")
+        image_url = meta.get("Image_URL", "") or meta.get("image_url", "")
+    
         try:
             rank = int(rank)
         except:
             rank = 999
-
+    
         if name and name not in all_cards_from_db:
             all_cards_from_db[name] = {
                 "Card_Name": name,
                 "Rank": rank,
-                "Card_Type": card_type
+                "Card_Type": card_type,
+                "Image_URL": image_url
             }
 
     return {

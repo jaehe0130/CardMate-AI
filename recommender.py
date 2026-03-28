@@ -26,7 +26,7 @@ from langchain_core.documents import Document
 from langchain_openai import OpenAIEmbeddings
 from langchain_community.vectorstores import Chroma
 from langchain_community.retrievers import BM25Retriever
-
+from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 
 DB_ZIP_PATH = Path("./card_semantic_db_v3.zip")
 DB_EXTRACT_ROOT = Path("./db_cache")

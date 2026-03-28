@@ -3,7 +3,11 @@ import re
 import html
 import streamlit as st
 from dotenv import load_dotenv
+
 from openai import OpenAI
+from utils_db import load_rag_resources
+from recommender import build_context, check_moderation, advanced_retriever_with_rerank
+from prompts import get_system_prompt
 
 from langchain_openai import ChatOpenAI
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
@@ -11,9 +15,6 @@ from langchain_core.runnables import RunnablePassthrough
 from langchain_core.output_parsers import StrOutputParser
 from langchain_community.chat_message_histories import ChatMessageHistory
 from langchain_core.runnables.history import RunnableWithMessageHistory
-
-from utils_db import load_rag_resources
-from recommender import build_context, check_moderation
 
 
 # =========================================================
@@ -52,11 +53,8 @@ st.markdown(
         --muted: #6b7684;
         --line: #e5e8eb;
         --primary: #3182f6;
-        --primary-soft: #e8f3ff;
-        --shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
-        --radius-xl: 24px;
-        --radius-lg: 18px;
-        --radius-md: 14px;
+        --primary-soft: #eaf3ff;
+        --shadow: 0 10px 28px rgba(15, 23, 42, 0.07);
     }
 
     .stApp {
@@ -65,22 +63,22 @@ st.markdown(
     }
 
     .block-container {
-        max-width: 1280px;
-        padding-top: 1.4rem;
+        max-width: 1320px;
+        padding-top: 1.3rem;
         padding-bottom: 2rem;
     }
 
     section[data-testid="stSidebar"] {
-        background: rgba(255,255,255,0.82);
+        background: rgba(255,255,255,0.84);
         backdrop-filter: blur(14px);
         border-right: 1px solid rgba(229,232,235,0.9);
     }
 
     .hero-wrap {
-        background: linear-gradient(135deg, #1b64da 0%, #3182f6 48%, #73b0ff 100%);
-        border-radius: 30px;
-        padding: 28px 28px 24px 28px;
-        box-shadow: 0 16px 40px rgba(49,130,246,0.22);
+        background: linear-gradient(135deg, #0f5fd8 0%, #3182f6 48%, #75b1ff 100%);
+        border-radius: 32px;
+        padding: 30px;
+        box-shadow: 0 18px 44px rgba(49,130,246,0.22);
         color: white;
         margin-bottom: 20px;
         position: relative;
@@ -90,11 +88,11 @@ st.markdown(
     .hero-wrap::after {
         content: "";
         position: absolute;
-        width: 280px;
-        height: 280px;
-        right: -70px;
-        top: -90px;
-        background: rgba(255,255,255,0.16);
+        width: 320px;
+        height: 320px;
+        right: -90px;
+        top: -110px;
+        background: rgba(255,255,255,0.14);
         border-radius: 50%;
     }
 
@@ -102,16 +100,17 @@ st.markdown(
         display: inline-flex;
         align-items: center;
         gap: 8px;
-        background: rgba(255,255,255,0.16);
+        background: rgba(255,255,255,0.15);
         border: 1px solid rgba(255,255,255,0.18);
         padding: 7px 12px;
         border-radius: 999px;
         font-size: 13px;
         margin-bottom: 14px;
+        font-weight: 600;
     }
 
     .hero-title {
-        font-size: 34px;
+        font-size: 35px;
         font-weight: 800;
         line-height: 1.2;
         margin-bottom: 8px;
@@ -120,8 +119,8 @@ st.markdown(
 
     .hero-sub {
         font-size: 15px;
-        color: rgba(255,255,255,0.92);
-        line-height: 1.65;
+        color: rgba(255,255,255,0.93);
+        line-height: 1.68;
     }
 
     .info-grid {
@@ -132,10 +131,10 @@ st.markdown(
     }
 
     .info-card {
-        background: rgba(255,255,255,0.88);
+        background: rgba(255,255,255,0.9);
         border: 1px solid rgba(229,232,235,0.95);
-        border-radius: 20px;
-        padding: 18px 18px 16px 18px;
+        border-radius: 22px;
+        padding: 18px;
         box-shadow: var(--shadow);
     }
 
@@ -143,7 +142,7 @@ st.markdown(
         font-size: 12px;
         color: var(--muted);
         margin-bottom: 6px;
-        font-weight: 600;
+        font-weight: 700;
     }
 
     .info-value {
@@ -168,55 +167,12 @@ st.markdown(
         letter-spacing: -0.02em;
     }
 
-    .glass-panel {
+    .chat-shell {
         background: rgba(255,255,255,0.9);
         border: 1px solid rgba(229,232,235,0.95);
-        border-radius: 24px;
+        border-radius: 26px;
         box-shadow: var(--shadow);
-        padding: 18px;
-    }
-
-    .chat-panel {
-        background: rgba(255,255,255,0.88);
-        border: 1px solid rgba(229,232,235,0.95);
-        border-radius: 24px;
-        box-shadow: var(--shadow);
-        padding: 8px 8px 14px 8px;
-        min-height: 520px;
-    }
-
-    .side-card {
-        background: rgba(255,255,255,0.92);
-        border: 1px solid rgba(229,232,235,0.95);
-        border-radius: 20px;
-        padding: 16px;
-        box-shadow: var(--shadow);
-        margin-bottom: 12px;
-    }
-
-    .side-title {
-        font-size: 15px;
-        font-weight: 800;
-        color: var(--text);
-        margin-bottom: 8px;
-    }
-
-    .side-desc {
-        font-size: 13px;
-        color: var(--muted);
-        line-height: 1.6;
-    }
-
-    .quick-chip {
-        display: inline-block;
-        background: var(--primary-soft);
-        color: var(--primary);
-        padding: 8px 12px;
-        border-radius: 999px;
-        font-size: 12px;
-        font-weight: 700;
-        margin: 4px 6px 0 0;
-        border: 1px solid #d9e8ff;
+        padding: 12px 12px 14px 12px;
     }
 
     .recommend-scroll {
@@ -243,10 +199,9 @@ st.markdown(
         background: linear-gradient(180deg, #ffffff 0%, #fbfcff 100%);
         border: 1px solid #e8edf4;
         border-radius: 24px;
-        box-shadow: 0 10px 24px rgba(15, 23, 42, 0.06);
+        box-shadow: 0 12px 28px rgba(15, 23, 42, 0.07);
         padding: 18px;
         scroll-snap-align: start;
-        position: relative;
     }
 
     .card-rank {
@@ -279,7 +234,6 @@ st.markdown(
         width: 100%;
         height: 100%;
         object-fit: contain;
-        background: transparent;
     }
 
     .card-image-fallback {
@@ -330,11 +284,11 @@ st.markdown(
         border: 1px solid #edf2f7;
         border-radius: 16px;
         padding: 12px 14px;
-        min-height: 102px;
+        min-height: 104px;
         margin-bottom: 12px;
     }
 
-    .card-reason {
+    .card-mini {
         font-size: 13px;
         line-height: 1.7;
         color: var(--muted);
@@ -353,14 +307,49 @@ st.markdown(
         text-align: center;
     }
 
+    .side-card {
+        background: rgba(255,255,255,0.92);
+        border: 1px solid rgba(229,232,235,0.95);
+        border-radius: 20px;
+        padding: 16px;
+        box-shadow: var(--shadow);
+        margin-bottom: 12px;
+    }
+
+    .side-title {
+        font-size: 15px;
+        font-weight: 800;
+        color: var(--text);
+        margin-bottom: 8px;
+    }
+
+    .side-desc {
+        font-size: 13px;
+        color: var(--muted);
+        line-height: 1.6;
+    }
+
+    .quick-chip {
+        display: inline-block;
+        background: var(--primary-soft);
+        color: var(--primary);
+        padding: 8px 12px;
+        border-radius: 999px;
+        font-size: 12px;
+        font-weight: 700;
+        margin: 4px 6px 0 0;
+        border: 1px solid #d9e8ff;
+    }
+
     div[data-testid="stChatMessage"] {
         border-radius: 18px;
         padding: 4px 6px;
         margin-bottom: 8px;
     }
 
-    div[data-testid="stChatMessage"] [data-testid="stMarkdownContainer"] p {
-        line-height: 1.75;
+    div[data-testid="stChatMessage"] [data-testid="stMarkdownContainer"] p,
+    div[data-testid="stChatMessage"] [data-testid="stMarkdownContainer"] li {
+        line-height: 1.78;
         font-size: 15px;
     }
 
@@ -368,7 +357,7 @@ st.markdown(
         border-radius: 20px !important;
         border: 1px solid #dbe2ea !important;
         box-shadow: 0 8px 24px rgba(15,23,42,0.05) !important;
-        background: rgba(255,255,255,0.95) !important;
+        background: rgba(255,255,255,0.96) !important;
     }
 
     .stButton > button {
@@ -414,6 +403,18 @@ def safe_text(value, default="정보 없음"):
     return text
 
 
+def get_card_image_url(card_name: str, all_cards_from_db: dict) -> str:
+    if not isinstance(all_cards_from_db, dict):
+        return ""
+    card = all_cards_from_db.get(card_name, {})
+    return (
+        card.get("Image_URL")
+        or card.get("image_url")
+        or card.get("image")
+        or ""
+    )
+
+
 def extract_card_name(block: str) -> str:
     match = re.search(r"###\s*(.*?)\s*###", block)
     return safe_text(match.group(1), "추천 카드") if match else "추천 카드"
@@ -444,56 +445,40 @@ def extract_benefit(block: str) -> str:
     return cleaned[:240] + ("..." if len(cleaned) > 240 else "")
 
 
-def split_context_blocks(context: str):
+def parse_context_cards(context: str, all_cards_from_db: dict):
     if not context or "검색된 카드 정보가 없습니다" in context:
         return []
+
     blocks = re.split(r"\n(?=\[\[🔥 추천 \d+순위 문서 🔥\]\])", context.strip())
-    return [b.strip() for b in blocks if b.strip()]
-
-
-def parse_context_cards(context: str, all_cards_from_db: dict):
     cards = []
-    blocks = split_context_blocks(context)
-    for idx, block in enumerate(blocks, start=1):
+
+    for idx, block in enumerate([b for b in blocks if b.strip()], start=1):
         card_name = extract_card_name(block)
-        rank = extract_rank(block, idx)
         fee, perf = extract_fee_perf(block)
-        benefit = extract_benefit(block)
-        db_meta = all_cards_from_db.get(card_name, {}) if isinstance(all_cards_from_db, dict) else {}
-
-        image_url = (
-            db_meta.get("Image_URL")
-            or db_meta.get("image_url")
-            or db_meta.get("image")
-            or ""
-        )
-        card_type = db_meta.get("Card_Type") or db_meta.get("card_type") or "카드"
-        reason = (
-            "질문에서 요청한 혜택 키워드와 DB 검색 결과를 함께 반영해 추천했어요. "
-            "연회비와 전월실적도 함께 비교해 보세요."
-        )
-
         cards.append(
             {
-                "rank": rank,
+                "rank": extract_rank(block, idx),
                 "card_name": card_name,
-                "image_url": image_url,
-                "card_type": safe_text(card_type, "카드"),
+                "image_url": get_card_image_url(card_name, all_cards_from_db),
+                "benefit": extract_benefit(block),
                 "fee": fee,
                 "perf": perf,
-                "benefit": benefit,
-                "reason": reason,
+                "card_type": safe_text(
+                    all_cards_from_db.get(card_name, {}).get("Card_Type")
+                    or all_cards_from_db.get(card_name, {}).get("card_type"),
+                    "카드",
+                ),
             }
         )
     return cards
 
 
 def render_card_carousel(cards):
-    st.markdown('<div class="section-title">추천 카드 미리보기</div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-title">추천 카드</div>', unsafe_allow_html=True)
 
     if not cards:
         st.markdown(
-            '<div class="empty-card">아직 추천 카드가 없어요. 아래 채팅창에 원하는 혜택을 입력해 보세요.</div>',
+            '<div class="empty-card">아직 추천 카드가 없어요. 원하는 혜택을 입력하면 카드 이미지와 함께 추천 결과가 여기에 표시됩니다.</div>',
             unsafe_allow_html=True,
         )
         return
@@ -506,7 +491,6 @@ def render_card_carousel(cards):
         fee = html.escape(safe_text(card.get("fee"), "정보 없음"))
         perf = html.escape(safe_text(card.get("perf"), "정보 없음"))
         benefit = html.escape(safe_text(card.get("benefit"), "추천 혜택 정보"))
-        reason = html.escape(safe_text(card.get("reason"), "질문과 가장 관련된 카드로 추천되었어요."))
         rank = card.get("rank", 0)
 
         if image_url and image_url.startswith("http"):
@@ -527,7 +511,7 @@ def render_card_carousel(cards):
                     <span class="badge">실적 {perf}</span>
                 </div>
                 <div class="card-benefit"><b>핵심 혜택</b><br>{benefit}</div>
-                <div class="card-reason"><b>추천 포인트</b><br>{reason}</div>
+                <div class="card-mini"><b>포인트</b><br>추천 결과 텍스트와 함께 비교해 보면서 가장 잘 맞는 카드를 골라보세요.</div>
             </div>
             """
         )
@@ -535,25 +519,36 @@ def render_card_carousel(cards):
     st.markdown("".join(html_parts), unsafe_allow_html=True)
 
 
-def build_dashboard_cards(total_cards: int, db_path: str):
-    db_name = db_path.split("/")[-1] if db_path else "semantic db"
+def render_hero(total_cards: int, db_path: str):
+    st.markdown(
+        """
+        <div class="hero-wrap">
+            <div class="hero-chip">✨ AI 카드 추천 · Hybrid RAG · Toss Style</div>
+            <div class="hero-title">내 소비패턴에 딱 맞는 카드,<br>서비스처럼 빠르게 추천받기</div>
+            <div class="hero-sub">카드 혜택 DB를 검색해서 카드 이미지, 핵심 혜택, 연회비, 전월실적을 함께 보여줍니다. 원하는 생활 패턴을 편하게 입력해 보세요.</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    db_name = html.escape(db_path.split("/")[-1] if db_path else "semantic db")
     st.markdown(
         f"""
         <div class="info-grid">
             <div class="info-card">
                 <div class="info-label">추천 엔진</div>
                 <div class="info-value">Hybrid RAG</div>
-                <div class="info-desc">BM25와 Chroma 검색 결과를 함께 사용해 더 정확한 카드 후보를 찾습니다.</div>
+                <div class="info-desc">BM25와 벡터 검색을 함께 사용해 질문에 더 잘 맞는 카드 후보를 찾습니다.</div>
             </div>
             <div class="info-card">
-                <div class="info-label">로드된 카드 수</div>
+                <div class="info-label">카드 혜택 청크</div>
                 <div class="info-value">{total_cards:,}</div>
-                <div class="info-desc">압축 해제된 DB에서 불러온 카드 혜택 청크를 기반으로 추천합니다.</div>
+                <div class="info-desc">로드된 문서를 바탕으로 추천 카드를 압축해서 보여줍니다.</div>
             </div>
             <div class="info-card">
                 <div class="info-label">DB 상태</div>
-                <div class="info-value">{html.escape(db_name)}</div>
-                <div class="info-desc">구글드라이브 zip에서 내려받은 Chroma DB를 현재 세션에서 재사용합니다.</div>
+                <div class="info-value">{db_name}</div>
+                <div class="info-desc">구글드라이브 zip DB를 현재 세션에서 불러와 사용하고 있습니다.</div>
             </div>
         </div>
         """,
@@ -592,39 +587,11 @@ except Exception as e:
 
 
 # =========================================================
-# 프롬프트 / 체인
+# 프롬프트 / 체인 연결
 # =========================================================
-system_prompt = """
-당신은 대한민국 최고의 '신용/체크카드 맞춤형 추천 전문가(Financial Advisor)'입니다.
-반드시 제공된 [카드 혜택 정보(Context)]만을 바탕으로 사용자의 질문에 가장 적합한 카드를 추천하세요.
-
-[제약 조건 (Strict Rules)]
-1. 정보의 절대성: Context에 명시되지 않은 혜택, 연회비, 실적 조건은 지어내지 마세요.
-2. 사용자 니즈 정밀 매칭: 사용자의 질문과 직접 관련된 혜택을 우선 추천하세요.
-3. 카드 종류 준수:
-   - 사용자가 체크카드를 원하면 체크카드만 추천하세요.
-   - 사용자가 신용카드를 원하면 신용카드만 추천하세요.
-4. 다중 선택지 제공: 가장 적합한 카드 3개를 추천하세요.
-5. 가독성 있게 마크다운으로 답변하세요.
-
-[출력 형식]
-**[소비 패턴 분석]**
-(사용자의 주요 소비 카테고리와 필요한 혜택 요약)
-
-**[추천 카드]**
-### 💳 [카드명]
-* **핵심 혜택:** ...
-* **연회비:** ... / **전월실적:** ...
-* **추천 이유:** ...
-
----
-[카드 혜택 정보(Context)]
-{context}
-"""
-
 base_prompt = ChatPromptTemplate.from_messages(
     [
-        ("system", system_prompt),
+        ("system", get_system_prompt()),
         MessagesPlaceholder(variable_name="history"),
         ("human", "{question}"),
     ]
@@ -676,9 +643,6 @@ if "messages" not in st.session_state:
         }
     ]
 
-if "latest_context" not in st.session_state:
-    st.session_state.latest_context = ""
-
 if "latest_cards" not in st.session_state:
     st.session_state.latest_cards = []
 
@@ -690,9 +654,9 @@ if "prefill_prompt" not in st.session_state:
 # 사이드바
 # =========================================================
 with st.sidebar:
-    st.markdown('<div class="side-card"><div class="side-title">💳 CardMate AI</div><div class="side-desc">토스 스타일의 카드 추천 챗봇 UI입니다. 질문을 입력하면 카드 혜택 DB를 기반으로 가장 잘 맞는 카드 3개를 추천합니다.</div></div>', unsafe_allow_html=True)
+    st.markdown('<div class="side-card"><div class="side-title">💳 CardMate AI</div><div class="side-desc">카드 추천 로직과 프롬프트는 별도 파일에서 관리하고, 여기서는 서비스형 UI와 결과 표현에 집중합니다.</div></div>', unsafe_allow_html=True)
 
-    st.markdown('<div class="side-card"><div class="side-title">빠른 질문</div><div class="side-desc">아래 버튼을 누르면 추천 문장이 입력창에 바로 들어갑니다.</div></div>', unsafe_allow_html=True)
+    st.markdown('<div class="side-card"><div class="side-title">빠른 시작</div><div class="side-desc">아래 버튼을 누르면 추천 문장이 입력창으로 바로 들어갑니다.</div></div>', unsafe_allow_html=True)
 
     quick_prompts = [
         "나 18살 학생인데 편의점이랑 교통비 할인 많이 되는 체크카드 추천해줘",
@@ -706,35 +670,22 @@ with st.sidebar:
         if st.button(prompt):
             st.session_state.prefill_prompt = prompt
 
-    st.markdown('<div class="side-card"><div class="side-title">추천 팁</div><div class="side-desc">원하는 혜택, 카드 종류, 생활 패턴을 함께 말하면 더 정확해져요.<br><br><span class="quick-chip">예: 체크카드</span><span class="quick-chip">예: 편의점</span><span class="quick-chip">예: 교통</span><span class="quick-chip">예: 무실적</span></div></div>', unsafe_allow_html=True)
-
-    st.markdown('<div class="side-card"><div class="side-title">현재 연결</div><div class="side-desc">구글드라이브 zip DB를 세션에 로드해 사용 중입니다.</div></div>', unsafe_allow_html=True)
+    st.markdown('<div class="side-card"><div class="side-title">질문 팁</div><div class="side-desc">원하는 카드 종류, 자주 쓰는 곳, 혜택 방향을 같이 적으면 더 정확해져요.<br><br><span class="quick-chip">체크카드</span><span class="quick-chip">편의점</span><span class="quick-chip">교통</span><span class="quick-chip">무실적</span></div></div>', unsafe_allow_html=True)
 
 
 # =========================================================
-# 상단 히어로
+# 메인 레이아웃
 # =========================================================
-st.markdown(
-    """
-    <div class="hero-wrap">
-        <div class="hero-chip">✨ AI 카드 추천 · Hybrid RAG · Toss Style</div>
-        <div class="hero-title">내 소비패턴에 딱 맞는 카드,<br>대화로 빠르게 추천받기</div>
-        <div class="hero-sub">카드 혜택 DB를 검색해 할인, 적립, 연회비, 전월실적을 함께 비교해 보여줍니다. 원하는 생활 패턴을 자연스럽게 말해보세요.</div>
-    </div>
-    """,
-    unsafe_allow_html=True,
-)
+render_hero(total_cards=len(documents), db_path=db_path)
 
-build_dashboard_cards(total_cards=len(documents), db_path=db_path)
-
-left_col, right_col = st.columns([1.05, 1.35], gap="large")
+left_col, right_col = st.columns([1.04, 1.36], gap="large")
 
 with left_col:
     render_card_carousel(st.session_state.latest_cards)
 
 with right_col:
-    st.markdown('<div class="section-title">AI 카드 상담</div>', unsafe_allow_html=True)
-    st.markdown('<div class="chat-panel">', unsafe_allow_html=True)
+    st.markdown('<div class="section-title">추천 결과 텍스트</div>', unsafe_allow_html=True)
+    st.markdown('<div class="chat-shell">', unsafe_allow_html=True)
     for message in st.session_state.messages:
         with st.chat_message(message["role"]):
             st.markdown(message["content"])
@@ -742,12 +693,25 @@ with right_col:
 
 
 # =========================================================
-# 입력 / 실행
+# 실행
 # =========================================================
 def run_assistant(question: str) -> str:
     moderation_result = check_moderation(client, question)
     if moderation_result.get("flagged"):
+        st.session_state.latest_cards = []
         return "부적절한 내용이 포함되어 있어 답변할 수 없습니다. 다른 방식으로 질문해 주세요."
+
+    docs = advanced_retriever_with_rerank(
+        query=question,
+        bm25_retriever=bm25_retriever,
+        vector_retriever=vector_retriever,
+        documents=documents,
+        all_cards_from_db=all_cards_from_db,
+    )
+
+    if not docs:
+        st.session_state.latest_cards = []
+        return "조건에 맞는 카드 정보를 찾지 못했어요. 원하는 혜택이나 카드 종류를 조금 더 구체적으로 입력해 주세요."
 
     context = build_context(
         question=question,
@@ -756,12 +720,7 @@ def run_assistant(question: str) -> str:
         documents=documents,
         all_cards_from_db=all_cards_from_db,
     )
-
-    st.session_state.latest_context = context
     st.session_state.latest_cards = parse_context_cards(context, all_cards_from_db)
-
-    if not st.session_state.latest_cards:
-        return "조건에 맞는 카드 정보를 찾지 못했어요. 원하는 혜택이나 카드 종류를 조금 더 구체적으로 입력해 주세요."
 
     return conversational_chain.invoke(
         {"question": question},
@@ -769,7 +728,11 @@ def run_assistant(question: str) -> str:
     )
 
 
-chat_placeholder = st.session_state.prefill_prompt if st.session_state.prefill_prompt else "예: 나 18살 학생인데 교통비랑 편의점 할인 좋은 체크카드 추천해줘"
+chat_placeholder = (
+    st.session_state.prefill_prompt
+    if st.session_state.prefill_prompt
+    else "예: 나 18살 학생인데 교통비랑 편의점 할인 좋은 체크카드 추천해줘"
+)
 user_prompt = st.chat_input(chat_placeholder)
 
 if st.session_state.prefill_prompt and not user_prompt:

@@ -13,7 +13,7 @@ def check_moderation(text: str) -> dict:
     반환값:
     {
         "flagged"    : True/False,
-        "categories" : {
+        "categories" : {            
             "hate"        : False,
             "harassment"  : False,
             "self-harm"   : False,
@@ -47,16 +47,13 @@ def check_moderation(text: str) -> dict:
         reason = ", ".join(flagged_categories) if flagged_categories else "unknown"
 
     return {
-        "flagged": result.flagged,
-        "categories": result.categories.__dict__,
-        "scores": result.category_scores.__dict__,  # 각 항목의 위험도 점수
-        "reason": reason,
+        "flagged"    : result.flagged,
+        "categories" : result.categories.__dict__,
+        "scores"     : result.category_scores.__dict__,  # 각 항목의 위험도 점수
+        "reason"     : reason
     }
 
 
-# =========================
-# 2. RRF
-# =========================
 def reciprocal_rank_fusion(results_list: list, k: int = 60) -> list:
     """
     RAG-Fusion: BM25 + 벡터 검색 결과를 RRF 알고리즘으로 합산
@@ -78,9 +75,7 @@ def reciprocal_rank_fusion(results_list: list, k: int = 60) -> list:
     return [doc_map[key] for key in sorted_keys]
 
 
-# =========================
-# 3. 인기순 리랭킹
-# =========================
+# 2. 검색 고도화 로직 (하이브리드 + 리랭킹)
 def rerank_by_popularity(docs):
     scored_docs = []
     for i, doc in enumerate(docs):
@@ -98,19 +93,12 @@ def rerank_by_popularity(docs):
         scored_docs.append((doc, base_score + popularity_boost))
         
     scored_docs.sort(key=lambda x: x[1], reverse=True)
-    return [d[0] for d in scored_docs[:10]]10]]
+    return [d[0] for d in scored_docs[:10]]
 
 
-
-# =========================
-# 4. 검색 + 병합 + 리랭크
-# =========================
 def advanced_retriever_with_rerank(query):
     # 🌟 1. 질문 의도 파악 (10대 여부 확인)
-    is_teenager = any(
-        keyword in query
-        for keyword in ["10대", "청소년", "학생", "중학생", "고등학생", "미성년자"]
-    )
+    is_teenager = any(keyword in query for keyword in ["10대", "청소년", "학생", "중학생", "고등학생", "미성년자"])
 
     # 🌟 2. 검색기 세팅 (필터 적용)
     if is_teenager:
@@ -122,72 +110,28 @@ def advanced_retriever_with_rerank(query):
     # 🌟 3. 실제 검색 실행 (하이브리드 검색)
     bm_docs = bm25_retriever.invoke(query)
     vc_docs = vector_retriever.invoke(query)
-    combined_docs = bm_docs + vc_docs
+    # combined_docs = bm_docs + vc_docs
+    combined_docs = reciprocal_rank_fusion([bm_docs, vc_docs]) # RAG-fuwion
 
     # 🌟 4. 인기 카드 강제 주입 로직 (이름 공백 제거 매칭 적용)
-    if any(
-        keyword in query
-        for keyword in ["인기", "많이 쓰는", "순위", "1위", "대세", "추천"]
-    ):
+    if any(keyword in query for keyword in ["인기", "많이 쓰는", "순위", "1위", "대세", "추천"]):
         if is_teenager:
-            candidate_cards = [
-                c for c in all_cards_from_db.values() if c["Card_Type"] == "체크카드"
-            ]
+            candidate_cards = [c for c in all_cards_from_db.values() if c['Card_Type'] == '체크카드']
         else:
             candidate_cards = list(all_cards_from_db.values())
-
-        top_5_cards = sorted(candidate_cards, key=lambda x: x["Rank"])[:5]
-        top_5_names = [c["Card_Name"] for c in top_5_cards]
-
+            
+        top_5_cards = sorted(candidate_cards, key=lambda x: x['Rank'])[:5]
+        top_5_names = [c['Card_Name'] for c in top_5_cards]
+        
         # 띄어쓰기가 달라도 매칭되도록 공백 제거 후 비교
-        def clean(t):
-            return str(t).replace(" ", "").strip()
-
+        def clean(t): return str(t).replace(" ", "").strip()
         clean_top_5 = [clean(n) for n in top_5_names]
 
-        for doc in documents:
-            if clean(doc.metadata.get("card_name", "")) in clean_top_5:
+        for doc in documents: 
+            if clean(doc.metadata.get('card_name', '')) in clean_top_5:
                 combined_docs.append(doc)
 
-# =========================
-# 5. LLM에 넣을 Context 문자열 변환
-# =========================
-def format_docs(docs):
-    formatted = []
-    # enumerate를 사용해 리랭킹된 순서(idx)를 가져옵니다.
-    for idx, d in enumerate(docs):
-        fee = d.metadata.get("annual_fee", "정보없음")
-        perf = d.metadata.get("performance", "정보없음")
-
-        # 🌟 핵심: LLM이 딴짓을 못하도록 헤더에 [추천 N순위]를 강제로 박아버립니다.
-        doc_text = f"[[🔥 추천 {idx+1}순위 문서 🔥]]\n### {d.metadata.get('card_name')} ###\n{d.page_content}\n[조건] 연회비: {fee} / 전월실적: {perf}"
-        formatted.append(doc_text)
-
-    return "\n\n".join(formatted)
-
-
-# =========================
-# 6. context 생성 helper
-# =========================
-def build_context(
-    question: str,
-    bm25_retriever,
-    vector_retriever,
-    documents: list,
-    all_cards_from_db: dict,
-) -> str:
-    """
-    질문 -> 검색/리랭크 -> context 문자열 생성
-    """
-    docs = advanced_retriever_with_rerank(
-        query=question,
-        bm25_retriever=bm25_retriever,
-        vector_retriever=vector_retriever,
-        documents=documents,
-        all_cards_from_db=all_cards_from_db,
-    )
-    return format_docs(docs)
- # ====================================================================
+    # ====================================================================
     # 🌟 5. [핵심 수술 부위] 혜택 병합(Merge) 로직 (기존 seen_card_names 대체!)
     # ====================================================================
     card_grouped_docs = {}
@@ -220,6 +164,23 @@ def build_context(
         unique_docs.append(Document(page_content=combined_text, metadata=data["metadata"]))
     # ====================================================================
 
+    # 🌟 6. 리랭킹 적용 후 상위 3개만 LLM에게 전달 (최적화)
+    return rerank_by_popularity(unique_docs)[:3]
+
+
+def format_docs(docs):
+    formatted = []
+    # enumerate를 사용해 리랭킹된 순서(idx)를 가져옵니다.
+    for idx, d in enumerate(docs): 
+        fee = d.metadata.get('annual_fee', '정보없음')
+        perf = d.metadata.get('performance', '정보없음')
+        
+        # 🌟 핵심: LLM이 딴짓을 못하도록 헤더에 [추천 N순위]를 강제로 박아버립니다.
+        doc_text = f"[[🔥 추천 {idx+1}순위 문서 🔥]]\n### {d.metadata.get('card_name')} ###\n{d.page_content}\n[조건] 연회비: {fee} / 전월실적: {perf}"
+        formatted.append(doc_text)
+        
+    return "\n\n".join(formatted)
+    
 # =========================
 # 7. chat 실행 helper
 # =========================

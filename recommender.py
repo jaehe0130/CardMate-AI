@@ -23,7 +23,7 @@ MY_API_KEY = os.getenv("OPENAI_API_KEY") or st.secrets.get("OPENAI_API_KEY")
 
 if not MY_API_KEY:
     raise ValueError("OPENAI_API_KEY가 설정되지 않았습니다.")
-    
+client = OpenAI(api_key=MY_API_KEY)    
 # utils_db.py
 import os
 import shutil

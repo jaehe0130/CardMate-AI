@@ -1,6 +1,6 @@
-.streamlit/secrets.toml
+# .gitignore
+card_semantic_db_v3/
 .env
+.streamlit/secrets.toml
 __pycache__/
 *.pyc
-card_semantic_db_v3/
-card_semantic_db_v3.zip

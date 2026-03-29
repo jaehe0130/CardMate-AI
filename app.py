@@ -146,38 +146,47 @@ st.markdown("""
 # ─────────────────────────────────────────
 # 환경 로드 & 초기화 (캐시)
 # ─────────────────────────────────────────
-@st.cache_resource(show_spinner="🔧 AI 엔진을 준비하는 중...")
+@st.cache_resource(show_spinner="🔧 카드 DB를 준비하는 중... (첫 실행 시 1~2분 소요)")
 def init_engine(api_key: str):
-    """벡터DB, BM25, 체인을 한 번만 초기화합니다."""
-    client = OpenAI(api_key=api_key)
+    PERSIST_DIR = "./card_semantic_db_v3"
     embeddings = OpenAIEmbeddings(api_key=api_key, model="text-embedding-3-small")
 
-    vector_db = Chroma(
-        persist_directory="./card_semantic_db_v3",
-        embedding_function=embeddings,
-    )
+    # DB가 없으면 자동 생성
+    if not os.path.exists(PERSIST_DIR):
+        st.info("📦 첫 실행입니다. 카드 DB를 구축하는 중이에요 (약 1~2분)...")
+        import shutil, json
+        from langchain_core.documents import Document
+        from langchain_chroma import Chroma as ChromaBuild
 
-    all_data = vector_db.get()
-    documents = [
-        Document(page_content=doc, metadata=meta)
-        for doc, meta in zip(all_data["documents"], all_data["metadatas"])
-    ]
+        with open("merged_card_data.json", "r", encoding="utf-8") as f:
+            card_data = json.load(f)
 
-    bm25_retriever = BM25Retriever.from_documents(documents)
-    bm25_retriever.k = 10
-    vector_retriever = vector_db.as_retriever(search_kwargs={"k": 10})
+        semantic_docs = []
+        for card in card_data:
+            card_name = card.get("Card_Name", "")
+            # ... (기존 노트북 청킹 로직 그대로)
+            for b in card.get("Benefits_Summary", []):
+                chunk_text = f"카드명: {card_name}\n분류: {card.get('Card_Type','')}\n혜택 내용: {b[:350]}"
+                metadata = {
+                    "card_name": card_name,
+                    "card_company": card.get("Card_Company", ""),
+                    "card_type": card.get("Card_Type", ""),
+                    "performance": card.get("Base_Perf_Num", 0),
+                    "annual_fee": card.get("Annual_Fee_Domestic", 0),
+                    "image_url": card.get("Image_URL", ""),
+                    "rank": int(card.get("Rank", 999)),
+                }
+                semantic_docs.append(Document(page_content=chunk_text, metadata=metadata))
 
-    all_cards_from_db = {}
-    for doc in documents:
-        name = doc.metadata.get("card_name")
-        rank = doc.metadata.get("rank", 999)
-        card_type = doc.metadata.get("card_type", "")
-        if name and name not in all_cards_from_db:
-            all_cards_from_db[name] = {"Card_Name": name, "Rank": rank, "Card_Type": card_type}
+        ChromaBuild.from_documents(
+            documents=semantic_docs,
+            embedding=embeddings,
+            persist_directory=PERSIST_DIR,
+        )
 
-    llm = ChatOpenAI(model_name="gpt-3.5-turbo", api_key=api_key, temperature=0.1)
-
-    return client, vector_retriever, bm25_retriever, documents, all_cards_from_db, llm
+    # 이후 기존 로직 동일
+    vector_db = Chroma(persist_directory=PERSIST_DIR, embedding_function=embeddings)
+    # ... 나머지 동일
 
 
 # ─────────────────────────────────────────

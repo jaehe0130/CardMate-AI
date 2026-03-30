@@ -134,7 +134,6 @@ st.markdown(
     section[data-testid="stSidebar"] .stButton button * {
         background-color: white !important;
         color: black !important; 
-        border: 1px solid #cccccc !important; /* 연한 회색 테두리 */
     }
     
     /* 4. 마우스 올렸을 때 (배경 흰색 유지, 글씨 검은색 유지) */

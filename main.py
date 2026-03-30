@@ -126,7 +126,7 @@ st.markdown("""
     section[data-testid="stSidebar"] {
         background: #1a1a2e;
     }
-    section[data-testid="stSidebar"] * { color: white !important; }
+    /*section[data-testid="stSidebar"] * { color: white !important; }*/
 
     /* 헤더 */
     .main-header {

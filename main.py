@@ -128,7 +128,15 @@ st.markdown(
         background: #1a1a2e;
     }
     section[data-testid="stSidebar"] * { color: white !important; }
-    section[data-testid="stSidebar"] .stButton button:hover { color: #1A1A2E !important;  }
+    
+    /* 3. 버튼에 마우스 올렸을 때 (핵심 해결 🌟) */
+    /* 버튼 자체와, 버튼 '안에' 있는 텍스트 요소까지 모두 찝어줍니다 */
+    section[data-testid="stSidebar"] .stButton button:hover,
+    section[data-testid="stSidebar"] .stButton button:hover * { 
+        color: #1A1A2E !important; 
+        background-color: white !important; /* 글씨가 어두워지니 배경을 하얗게 반전! */
+        border-color: white !important;
+    }
 
     /* 헤더 */
     .main-header {

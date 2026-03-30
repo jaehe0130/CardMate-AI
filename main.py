@@ -27,7 +27,8 @@ st.set_page_config(
 # ─────────────────────────────────────────
 # CSS 스타일
 # ─────────────────────────────────────────
-st.markdown("""
+st.markdown(
+    """
 <style>
     /* 전체 배경 */
     .stApp { background: #f0f4f8; }
@@ -140,14 +141,17 @@ st.markdown("""
     .main-header h1 { margin: 0; font-size: 28px; }
     .main-header p { margin: 6px 0 0; opacity: 0.85; font-size: 14px; }
 </style>
-""", unsafe_allow_html=True)
+""",
+    unsafe_allow_html=True,
+)
 
 
 # ─────────────────────────────────────────
 # 환경 로드 & 초기화 (캐시)
 # ─────────────────────────────────────────
 PERSIST_DIR = "./card_semantic_db_v3"
-DATA_FILE   = "./merged_card_data.json"
+DATA_FILE = "./merged_card_data.json"
+
 
 def _build_db(embeddings) -> None:
     """merged_card_data.json → Chroma DB 자동 생성 (첫 실행 시 1회만)"""
@@ -166,22 +170,22 @@ def _build_db(embeddings) -> None:
     for card in card_data:
         card_name = card.get("Card_Name", "이름 없음")
         card_type = card.get("Card_Type", "구분 없음")
-        company   = card.get("Card_Company", "카드사 없음")
-        perf      = card.get("Base_Perf_Num", 0)
-        fee_dom   = card.get("Annual_Fee_Domestic", 0)
-        fee_ovs   = card.get("Annual_Fee_Overseas", 0)
+        company = card.get("Card_Company", "카드사 없음")
+        perf = card.get("Base_Perf_Num", 0)
+        fee_dom = card.get("Annual_Fee_Domestic", 0)
+        fee_ovs = card.get("Annual_Fee_Overseas", 0)
         image_url = card.get("Image_URL", "")
-        rank      = int(card.get("Rank", 999))
-        benefits  = card.get("Benefits_Summary", [])
+        rank = int(card.get("Rank", 999))
+        benefits = card.get("Benefits_Summary", [])
 
         base_meta = {
-            "card_name"    : card_name,
-            "card_company" : company,
-            "card_type"    : card_type,
-            "performance"  : perf,
-            "annual_fee"   : fee_dom,
-            "image_url"    : image_url,
-            "rank"         : rank,
+            "card_name": card_name,
+            "card_company": company,
+            "card_type": card_type,
+            "performance": perf,
+            "annual_fee": fee_dom,
+            "image_url": image_url,
+            "rank": rank,
         }
 
         if not benefits:
@@ -195,8 +199,7 @@ def _build_db(embeddings) -> None:
 
         for b in benefits:
             chunk_text = (
-                f"카드명: {card_name}\n분류: {card_type}\n"
-                f"혜택 내용: {b[:350]}"
+                f"카드명: {card_name}\n분류: {card_type}\n" f"혜택 내용: {b[:350]}"
             )
             semantic_docs.append(Document(page_content=chunk_text, metadata=base_meta))
 
@@ -210,7 +213,7 @@ def _build_db(embeddings) -> None:
 @st.cache_resource(show_spinner="🔧 AI 엔진을 준비하는 중...")
 def init_engine(api_key: str):
     """벡터DB, BM25, 체인을 한 번만 초기화합니다. DB가 없으면 자동 생성합니다."""
-    client     = OpenAI(api_key=api_key)
+    client = OpenAI(api_key=api_key)
     embeddings = OpenAIEmbeddings(api_key=api_key, model="text-embedding-3-small")
 
     # ── DB 자동 생성 ──────────────────────────
@@ -224,7 +227,7 @@ def init_engine(api_key: str):
         embedding_function=embeddings,
     )
 
-    all_data  = vector_db.get()
+    all_data = vector_db.get()
     documents = [
         Document(page_content=doc, metadata=meta)
         for doc, meta in zip(all_data["documents"], all_data["metadatas"])
@@ -236,11 +239,15 @@ def init_engine(api_key: str):
 
     all_cards_from_db = {}
     for doc in documents:
-        name      = doc.metadata.get("card_name")
-        rank      = doc.metadata.get("rank", 999)
+        name = doc.metadata.get("card_name")
+        rank = doc.metadata.get("rank", 999)
         card_type = doc.metadata.get("card_type", "")
         if name and name not in all_cards_from_db:
-            all_cards_from_db[name] = {"Card_Name": name, "Rank": rank, "Card_Type": card_type}
+            all_cards_from_db[name] = {
+                "Card_Name": name,
+                "Rank": rank,
+                "Card_Type": card_type,
+            }
 
     llm = ChatOpenAI(model_name="gpt-3.5-turbo", api_key=api_key, temperature=0.1)
 
@@ -272,8 +279,12 @@ def rerank_by_popularity(docs):
     return [d[0] for d in scored[:10]]
 
 
-def advanced_retriever(query, vector_retriever, bm25_retriever, documents, all_cards_from_db):
-    is_teenager = any(k in query for k in ["10대", "청소년", "학생", "중학생", "고등학생", "미성년자"])
+def advanced_retriever(
+    query, vector_retriever, bm25_retriever, documents, all_cards_from_db
+):
+    is_teenager = any(
+        k in query for k in ["10대", "청소년", "학생", "중학생", "고등학생", "미성년자"]
+    )
 
     if is_teenager:
         vector_retriever.search_kwargs = {"k": 10, "filter": {"card_type": "체크카드"}}
@@ -286,8 +297,14 @@ def advanced_retriever(query, vector_retriever, bm25_retriever, documents, all_c
     combined = reciprocal_rank_fusion([bm_docs, vc_docs])
 
     if any(k in query for k in ["인기", "많이 쓰는", "순위", "1위", "대세", "추천"]):
-        candidates = [c for c in all_cards_from_db.values() if c["Card_Type"] == "체크카드"] if is_teenager else list(all_cards_from_db.values())
-        top5_names = [c["Card_Name"] for c in sorted(candidates, key=lambda x: x["Rank"])[:5]]
+        candidates = (
+            [c for c in all_cards_from_db.values() if c["Card_Type"] == "체크카드"]
+            if is_teenager
+            else list(all_cards_from_db.values())
+        )
+        top5_names = [
+            c["Card_Name"] for c in sorted(candidates, key=lambda x: x["Rank"])[:5]
+        ]
         clean = lambda t: str(t).replace(" ", "").strip()
         clean_top5 = [clean(n) for n in top5_names]
         for doc in documents:
@@ -303,14 +320,19 @@ def advanced_retriever(query, vector_retriever, bm25_retriever, documents, all_c
         if is_teenager and "신용" in card_type:
             continue
         if card_name not in card_grouped:
-            card_grouped[card_name] = {"metadata": d.metadata, "benefits": [d.page_content]}
+            card_grouped[card_name] = {
+                "metadata": d.metadata,
+                "benefits": [d.page_content],
+            }
         elif d.page_content not in card_grouped[card_name]["benefits"]:
             card_grouped[card_name]["benefits"].append(d.page_content)
 
     unique_docs = []
     for c_name, data in card_grouped.items():
         combined_text = "\n".join(data["benefits"])[:2000]
-        unique_docs.append(Document(page_content=combined_text, metadata=data["metadata"]))
+        unique_docs.append(
+            Document(page_content=combined_text, metadata=data["metadata"])
+        )
 
     return rerank_by_popularity(unique_docs)[:3]
 
@@ -354,27 +376,35 @@ def extract_recommended_cards(llm_response: str, retrieved_docs: list) -> list:
         section_text = section_match.group(1).strip() if section_match else ""
 
         # 핵심 혜택 추출
-        benefit_match = re.search(r"\*\*핵심 혜택:\*\*\s*(.+?)(?=\n\*|\Z)", section_text, re.DOTALL)
+        benefit_match = re.search(
+            r"\*\*핵심 혜택:\*\*\s*(.+?)(?=\n\*|\Z)", section_text, re.DOTALL
+        )
         benefit_text = benefit_match.group(1).strip() if benefit_match else ""
 
         # 추천 이유 추출
-        reason_match = re.search(r"\*\*추천 이유:\*\*\s*(.+?)(?=\n\*|\Z)", section_text, re.DOTALL)
+        reason_match = re.search(
+            r"\*\*추천 이유:\*\*\s*(.+?)(?=\n\*|\Z)", section_text, re.DOTALL
+        )
         reason_text = reason_match.group(1).strip() if reason_match else ""
 
         # 연회비 추출
         fee_match = re.search(r"\*\*연회비:\*\*\s*(.+?)(?=\/|\n|\Z)", section_text)
-        fee_text = fee_match.group(1).strip() if fee_match else str(meta.get("annual_fee", ""))
+        fee_text = (
+            fee_match.group(1).strip() if fee_match else str(meta.get("annual_fee", ""))
+        )
 
-        results.append({
-            "rank": idx + 1,
-            "name": name,
-            "image_url": meta.get("image_url", ""),
-            "card_type": meta.get("card_type", ""),
-            "card_company": meta.get("card_company", ""),
-            "annual_fee": fee_text,
-            "benefit": benefit_text,
-            "reason": reason_text,
-        })
+        results.append(
+            {
+                "rank": idx + 1,
+                "name": name,
+                "image_url": meta.get("image_url", ""),
+                "card_type": meta.get("card_type", ""),
+                "card_company": meta.get("card_company", ""),
+                "annual_fee": fee_text,
+                "benefit": benefit_text,
+                "reason": reason_text,
+            }
+        )
 
     return results
 
@@ -383,9 +413,9 @@ def extract_recommended_cards(llm_response: str, retrieved_docs: list) -> list:
 # 사이드바
 # ─────────────────────────────────────────
 with st.sidebar:
-    #st.markdown("## ⚙️ 설정")
-    
-    #st.markdown("---")
+    # st.markdown("## ⚙️ 설정")
+
+    # st.markdown("---")
 
     # 🌟 API 키 입력창 제거: 화면에 보이지 않고 백그라운드 파일(.env/secrets)에서만 읽어옵니다.
     load_dotenv()
@@ -414,7 +444,8 @@ with st.sidebar:
         st.rerun()
 
     st.markdown("---")
-    st.markdown("""
+    st.markdown(
+        """
     <div style='
         font-size: 13px; 
         color: var(--text-color); 
@@ -431,17 +462,22 @@ with st.sidebar:
         • Popularity Re-ranking<br>
         • GPT-3.5-turbo
     </div>
-    """, unsafe_allow_html=True)
+    """,
+        unsafe_allow_html=True,
+    )
 
 # ─────────────────────────────────────────
 # 메인 화면
 # ─────────────────────────────────────────
-st.markdown("""
+st.markdown(
+    """
 <div class="main-header">
     <h1>💳 CardMate</h1>
     <p>AI가 당신의 소비 패턴에 딱 맞는 카드를 추천해 드립니다</p>
 </div>
-""", unsafe_allow_html=True)
+""",
+    unsafe_allow_html=True,
+)
 
 # 세션 상태 초기화
 if "messages" not in st.session_state:
@@ -453,12 +489,16 @@ if "pending_input" not in st.session_state:
 
 # API 키 미입력 안내
 if not api_key:
-    st.info("👈 사이드바에서 OpenAI API 키를 입력하거나, `.env` 파일에 `OPENAI_API_KEY`를 설정해주세요.")
+    st.info(
+        "👈 사이드바에서 OpenAI API 키를 입력하거나, `.env` 파일에 `OPENAI_API_KEY`를 설정해주세요."
+    )
     st.stop()
 
 # 엔진 초기화
 try:
-    client, vector_retriever, bm25_retriever, documents, all_cards_from_db, llm = init_engine(api_key)
+    client, vector_retriever, bm25_retriever, documents, all_cards_from_db, llm = (
+        init_engine(api_key)
+    )
 except FileNotFoundError as e:
     st.error(f"⚠️ 데이터 파일 오류: {e}")
     st.stop()
@@ -496,11 +536,13 @@ SYSTEM_PROMPT = """당신은 대한민국 최고의 '신용/체크카드 맞춤�
 {context}
 """
 
-base_prompt = ChatPromptTemplate.from_messages([
-    ("system", SYSTEM_PROMPT),
-    MessagesPlaceholder(variable_name="history"),
-    ("human", "{question}")
-])
+base_prompt = ChatPromptTemplate.from_messages(
+    [
+        ("system", SYSTEM_PROMPT),
+        MessagesPlaceholder(variable_name="history"),
+        ("human", "{question}"),
+    ]
+)
 
 
 def get_session_history(session_id: str):
@@ -525,7 +567,9 @@ def run_chat(question: str) -> tuple[str, list]:
     if mod["flagged"]:
         return "부적절한 내용이 포함되어 있어 답변드리기 어렵습니다.", []
 
-    retrieved_docs = advanced_retriever(question, vector_retriever, bm25_retriever, documents, all_cards_from_db)
+    retrieved_docs = advanced_retriever(
+        question, vector_retriever, bm25_retriever, documents, all_cards_from_db
+    )
     context_text = format_docs(retrieved_docs)
 
     base_chain = (
@@ -556,22 +600,28 @@ chat_container = st.container()
 
 with chat_container:
     if not st.session_state.messages:
-        st.markdown("""
+        st.markdown(
+            """
         <div style="text-align:center; color:#888; padding: 40px 0;">
             <div style="font-size:48px;">💳</div>
             <div style="font-size:18px; margin-top:12px; font-weight:600;">어떤 카드를 찾고 계신가요?</div>
             <div style="font-size:14px; margin-top:6px;">소비 패턴, 혜택, 연회비 등 자유롭게 질문해 보세요</div>
         </div>
-        """, unsafe_allow_html=True)
+        """,
+            unsafe_allow_html=True,
+        )
 
     for msg in st.session_state.messages:
         if msg["role"] == "user":
-            st.markdown(f'<div class="user-bubble">{msg["content"]}</div>', unsafe_allow_html=True)
+            st.markdown(
+                f'<div class="user-bubble">{msg["content"]}</div>',
+                unsafe_allow_html=True,
+            )
         else:
             # 텍스트 응답
             st.markdown(f'<div class="assistant-bubble">', unsafe_allow_html=True)
             st.markdown(msg["content"])
-            st.markdown('</div>', unsafe_allow_html=True)
+            st.markdown("</div>", unsafe_allow_html=True)
 
             # 추천 카드 UI
             cards = msg.get("cards", [])
@@ -581,27 +631,39 @@ with chat_container:
                 for i, (col, card) in enumerate(zip(cols, cards)):
                     with col:
                         with st.container():
-                            rank_label = ["🥇 1순위", "🥈 2순위", "🥉 3순위"][i] if i < 3 else f"{i+1}순위"
+                            rank_label = (
+                                ["🥇 1순위", "🥈 2순위", "🥉 3순위"][i]
+                                if i < 3
+                                else f"{i+1}순위"
+                            )
                             st.markdown(f"**{rank_label}**")
                             st.markdown(f"### {card['name']}")
 
                             if card.get("image_url"):
                                 st.image(
                                     card["image_url"],
-                                    use_container_width=True,
+                                    use_container_width=200,
                                     caption=card["name"],
                                 )
                             else:
                                 st.markdown("🖼️ *이미지 없음*")
 
                             if card.get("card_type"):
-                                badge_color = "#e8f0fe" if "신용" in card["card_type"] else "#e8fef0"
-                                badge_text_color = "#4A90D9" if "신용" in card["card_type"] else "#27ae60"
+                                badge_color = (
+                                    "#e8f0fe"
+                                    if "신용" in card["card_type"]
+                                    else "#e8fef0"
+                                )
+                                badge_text_color = (
+                                    "#4A90D9"
+                                    if "신용" in card["card_type"]
+                                    else "#27ae60"
+                                )
                                 st.markdown(
                                     f'<span style="background:{badge_color};color:{badge_text_color};'
                                     f'border-radius:20px;padding:3px 10px;font-size:12px;font-weight:600;">'
                                     f'{card["card_type"]}</span>',
-                                    unsafe_allow_html=True
+                                    unsafe_allow_html=True,
                                 )
 
                             if card.get("card_company"):
@@ -640,10 +702,12 @@ if user_input:
         response_text, recommended_cards = run_chat(user_input)
 
     # 어시스턴트 메시지 저장
-    st.session_state.messages.append({
-        "role": "assistant",
-        "content": response_text,
-        "cards": recommended_cards,
-    })
+    st.session_state.messages.append(
+        {
+            "role": "assistant",
+            "content": response_text,
+            "cards": recommended_cards,
+        }
+    )
 
     st.rerun()

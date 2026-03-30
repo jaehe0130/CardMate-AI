@@ -139,7 +139,7 @@ st.markdown(
     /* 4. 마우스 올렸을 때 (배경 흰색 유지, 글씨 검은색 유지) */
     section[data-testid="stSidebar"] .stButton button:hover,
     section[data-testid="stSidebar"] .stButton button:hover * {
-        background-color: gray !important; 
+        background-color: lightgray !important; 
         color: black !important;
     }
 

@@ -128,14 +128,21 @@ st.markdown(
         background: #1a1a2e;
     }
     section[data-testid="stSidebar"] * { color: white !important; }
+
+    /* 3. 버튼 기본 상태 (배경 흰색, 글씨 검은색 강제 고정!) */
+    section[data-testid="stSidebar"] .stButton button,
+    section[data-testid="stSidebar"] .stButton button * {
+        background-color: white !important;
+        color: black !important; 
+        border: 1px solid #cccccc !important; /* 연한 회색 테두리 */
+    }
     
-    /* 3. 버튼에 마우스 올렸을 때 (핵심 해결 🌟) */
-    /* 버튼 자체와, 버튼 '안에' 있는 텍스트 요소까지 모두 찝어줍니다 */
+    /* 4. 마우스 올렸을 때 (배경 흰색 유지, 글씨 검은색 유지) */
     section[data-testid="stSidebar"] .stButton button:hover,
-    section[data-testid="stSidebar"] .stButton button:hover * { 
-        color: #1A1A2E !important; 
-        background-color: white !important; /* 글씨가 어두워지니 배경을 하얗게 반전! */
-        border-color: white !important;
+    section[data-testid="stSidebar"] .stButton button:hover * {
+        background-color: white !important; 
+        color: black !important;
+        border: 1px solid black !important; /* 마우스 올린 티만 살짝 나게 테두리만 진해짐 */
     }
 
     /* 헤더 */

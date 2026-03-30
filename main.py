@@ -142,7 +142,6 @@ st.markdown(
     section[data-testid="stSidebar"] .stButton button:hover * {
         background-color: white !important; 
         color: black !important;
-        border: 1px solid black !important; /* 마우스 올린 티만 살짝 나게 테두리만 진해짐 */
     }
 
     /* 헤더 */

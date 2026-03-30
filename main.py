@@ -357,7 +357,7 @@ def format_docs(docs):
         fee = d.metadata.get("annual_fee", "정보없음")
         perf = d.metadata.get("performance", "정보없음")
         parts.append(
-            f"[[🔥 추천 {idx+1}순위 문서 🔥]]\n### {d.metadata.get('card_name')} ###\n"
+            f"[[ 추천 {idx+1}순위 ]]\n### {d.metadata.get('card_name')} ###\n"
             f"{d.page_content}\n[조건] 연회비: {fee} / 전월실적: {perf}"
         )
     return "\n\n".join(parts)

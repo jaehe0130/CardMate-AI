@@ -128,6 +128,7 @@ st.markdown(
         background: #1a1a2e;
     }
     section[data-testid="stSidebar"] * { color: white !important; }
+    section[data-testid="stSidebar"] .stButton button:hover { color: #1A1A2E !important;  }
 
     /* 헤더 */
     .main-header {

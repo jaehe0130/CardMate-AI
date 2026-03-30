@@ -384,6 +384,7 @@ def extract_recommended_cards(llm_response: str, retrieved_docs: list) -> list:
 # ─────────────────────────────────────────
 with st.sidebar:
     #st.markdown("## ⚙️ 설정")
+    
     #st.markdown("---")
 
     # 🌟 API 키 입력창 제거: 화면에 보이지 않고 백그라운드 파일(.env/secrets)에서만 읽어옵니다.

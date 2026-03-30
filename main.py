@@ -386,21 +386,15 @@ with st.sidebar:
     st.markdown("## ⚙️ 설정")
     st.markdown("---")
 
-    # Streamlit Cloud Secrets → .env → 직접 입력 순으로 우선순위
+    # 1. API 키 숨기기 (화면에는 안 보이고 백그라운드에서만 가져옴)
     load_dotenv()
-    _auto_key = st.secrets.get("OPENAI_API_KEY", "") if hasattr(st, "secrets") else ""
-    if not _auto_key:
-        _auto_key = os.getenv("OPENAI_API_KEY", "")
+    if hasattr(st, "secrets") and "OPENAI_API_KEY" in st.secrets:
+        api_key = st.secrets["OPENAI_API_KEY"]
+    else:
+        api_key = os.getenv("OPENAI_API_KEY", "")
 
-    api_key = st.text_input(
-        "OpenAI API Key",
-        value=_auto_key,
-        type="password",
-        placeholder="sk-...",
-        help="Streamlit Cloud Secrets 또는 .env 파일에 설정하면 자동 입력됩니다.",
-    )
+    # st.markdown("---") # API 키 입력창이 사라졌으므로 불필요한 구분선 제거
 
-    st.markdown("---")
     st.markdown("### 💡 질문 예시")
     examples = [
         "편의점이랑 교통카드 할인 되는 체크카드 추천해줘",
@@ -421,18 +415,26 @@ with st.sidebar:
         st.rerun()
 
     st.markdown("---")
+    
+    # 2. 하단 텍스트 색상 및 디자인 개선 (다크/라이트 모드 자동 대응)
     st.markdown("""
-    <div style='font-size:12px; opacity:0.7;'>
-    CardMate는 카드 혜택 DB를 기반으로<br>
-    맞춤형 카드를 추천해 드립니다.<br><br>
-    <b>사용 기술:</b><br>
-    • Hybrid Search (BM25 + Vector)<br>
-    • RAG-Fusion (RRF)<br>
-    • Popularity Re-ranking<br>
-    • GPT-3.5-turbo
+    <div style='
+        font-size: 13px; 
+        color: var(--text-color); 
+        background-color: var(--secondary-background-color); 
+        padding: 15px; 
+        border-radius: 10px; 
+        line-height: 1.6;
+    '>
+        <b>💳 CardMate</b>는 카드 혜택 DB를 기반으로<br>
+        맞춤형 카드를 추천해 드립니다.<br><br>
+        <b>🛠️ 사용 기술:</b><br>
+        • Hybrid Search (BM25 + Vector)<br>
+        • RAG-Fusion (RRF)<br>
+        • Popularity Re-ranking<br>
+        • GPT-3.5-turbo (또는 4o-mini)
     </div>
     """, unsafe_allow_html=True)
-
 
 # ─────────────────────────────────────────
 # 메인 화면
